@@ -248,6 +248,7 @@ function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; o
       <div className="map-layout">
         <div className="map-main">
           <section className="palace-map">
+            <img src="./assets/map-v2/palace-map-v2.webp" alt="宮城七處核心地點鳥瞰圖" />
             <div className="map-vignette" />
             <div className="map-axis axis-north">北・內廷管理</div>
             <div className="map-axis axis-center">數值提升點</div>
@@ -272,7 +273,7 @@ function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; o
           </div>
         </div>
         <aside className="place-panel section-card">
-          <div className="place-illustration"><img src={activePlace.image} alt={`${activePlace.name}場景示意`} /><em>場景示意</em><span>{activePlace.status}</span></div>
+          <div className="place-illustration"><img key={activePlace.id} src={activePlace.image} alt={`${activePlace.name}地點場景`} /><em>地點場景</em><span>{activePlace.status}</span></div>
           <p className="eyebrow">{activePlace.category}・SELECTED PLACE</p>
           <h2>{activePlace.name}</h2>
           <strong className="place-note">{activePlace.note}</strong>
