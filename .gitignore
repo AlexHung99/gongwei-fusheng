@@ -1,0 +1,12 @@
+frontend/node_modules/
+frontend/dist/
+.pnpm-store/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+*.log
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+.DS_Store
+Thumbs.db
