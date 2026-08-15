@@ -397,7 +397,7 @@ function NpcDirectory() {
   ] : [];
   return (
     <section className="npc-archive">
-      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中 NPC</h2><p>資料與人物照片直接採用原始 NPC 介紹文件。</p></div><small>共 {npcs.length} 人</small></div>
+      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中 NPC</h2><p>人物設定依原始介紹文件整理，立繪為重新繪製版本。</p></div><small>共 {npcs.length} 人</small></div>
       <div className="npc-layout">
         <div className="npc-grid" aria-label="NPC 人物列表">
           {npcs.map((npc) => (
@@ -408,7 +408,7 @@ function NpcDirectory() {
           ))}
         </div>
         <article className="npc-detail section-card">
-          <div className="npc-detail-image"><img src={selectedNpc.image} alt={`${selectedNpc.name}人物照片`} /><span>官方 NPC</span></div>
+          <div className="npc-detail-image"><img src={selectedNpc.image} alt={`${selectedNpc.name}人物立繪`} /><span>官方 NPC</span></div>
           <div className="npc-detail-copy">
             <p className="eyebrow">NPC PROFILE・字 {selectedNpc.courtesy}</p>
             <h2>{selectedNpc.name}<small>{selectedNpc.title}</small></h2>
