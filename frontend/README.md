@@ -1,6 +1,6 @@
 # 宮闈浮生 Web 前端
 
-依據 `前端規格書_v0.9.md` 製作的 GitHub Pages 靜態前端 MVP。
+依據 `前端規格書_v1.0.md` 製作的 GitHub Pages 靜態前端 MVP。
 
 ## 本機啟動
 
