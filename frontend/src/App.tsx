@@ -43,7 +43,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { chronicle, events, mapPlaces, portraits, type PortraitOption, type RouteKey } from "./data";
+import { chronicle, events, mapPlaces, npcs, portraits, type NpcProfile, type PortraitOption, type RouteKey } from "./data";
 
 const navItems: { id: RouteKey; label: string; icon: typeof Home }[] = [
   { id: "home", label: "今日", icon: Home },
@@ -136,7 +136,7 @@ function App() {
 
         <main className="page-content">
           {route === "home" && <HomeView navigate={navigate} onToast={setToast} />}
-          {route === "map" && <MapView onToast={setToast} />}
+          {route === "map" && <MapView navigate={navigate} onToast={setToast} />}
           {route === "events" && <EventsView onToast={setToast} />}
           {route === "character" && <CharacterView portrait={selectedPortrait} openPicker={() => setPortraitPickerOpen(true)} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
@@ -181,8 +181,8 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
         <div className="hero-copy">
           <div className="season-pill"><Sprout size={14} />春章・花信</div>
           <p className="hero-kicker">今日宮聞</p>
-          <h1>春宴將啟，<br />一紙宮箋暗藏風波。</h1>
-          <p>太后傳旨，酉時於蓬萊池設宴。赴宴者須以「清雅」為題選擇服儀。</p>
+          <h1>奉天春祭將啟，<br />一支舊籤暗藏風波。</h1>
+          <p>太后傳旨，酉時於奉天樓行祈福禮；主線內容已由管理員發布。</p>
           <div className="hero-actions">
             <button className="primary-button" onClick={() => navigate("events")}>前往春宴 <ChevronRight size={17} /></button>
             <button className="ghost-button" onClick={() => navigate("map")}>查看宮城</button>
@@ -195,9 +195,9 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
         <div className="section-card daily-card">
           <div className="section-title"><div><span>DAILY ACTIONS</span><h2>今日行止</h2></div><small>行動不限次數</small></div>
           <div className="action-list">
-            <button onClick={() => onToast("已前往御花園，新的邂逅正在展開")}> <i className="jade"><Feather /></i><span><strong>遊園</strong><small>可能觸發邂逅・不限行動點</small></span><ChevronRight /></button>
-            <button onClick={() => onToast("已安排研讀《女誡新註》")}> <i className="red"><BookOpen /></i><span><strong>研讀</strong><small>心計 +2・不限行動點</small></span><ChevronRight /></button>
-            <button onClick={() => onToast("服儀頁將在完整後端串接後開放")}> <i className="gold"><Gem /></i><span><strong>整裝</strong><small>為上巳春宴選擇服儀</small></span><ChevronRight /></button>
+            <button onClick={() => onToast("已前往奉天樓；正式版由後端結算祈福結果")}> <i className="jade"><Feather /></i><span><strong>祈福</strong><small>奉天樓・每日一次</small></span><ChevronRight /></button>
+            <button onClick={() => onToast("已前往閱書院研讀四書五經")}> <i className="red"><BookOpen /></i><span><strong>研讀</strong><small>閱書院・每日兩次</small></span><ChevronRight /></button>
+            <button onClick={() => onToast("已前往太醫院請平安脈")}> <i className="gold"><Gem /></i><span><strong>平安脈</strong><small>太醫院・每日一次</small></span><ChevronRight /></button>
           </div>
         </div>
 
@@ -221,7 +221,7 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
         <div className="section-card notice-card">
           <div className="section-title"><div><span>PALACE NOTICE</span><h2>宮務告示</h2></div></div>
           <div className="notice-item"><span>內務府</span><p>本月俸銀已發放，可至庫存查看明細。</p><small>一個時辰前</small></div>
-          <div className="notice-item"><span>尚宮局</span><p>春季服儀新增三套，現已開放預覽。</p><small>昨日</small></div>
+          <div className="notice-item"><span>觀仙台</span><p>今日三處籤池已開放，合計最多抽取三次。</p><small>昨日</small></div>
         </div>
       </section>
     </div>
@@ -232,25 +232,35 @@ function EventRow({ event, onClick }: { event: typeof events[number]; onClick: (
   return <button className="event-row" onClick={onClick}><i className={event.tone}><ScrollText /></i><span><em>{event.label}</em><strong>{event.title}</strong><small>{event.place}・{event.participants} 人參與</small></span><div><small>{event.deadline}</small><ChevronRight /></div></button>;
 }
 
-function MapView({ onToast }: { onToast: (message: string) => void }) {
-  const [activePlace, setActivePlace] = useState(mapPlaces[2]);
+function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
+  const [activePlace, setActivePlace] = useState(mapPlaces[1]);
+  const enterPlace = () => {
+    if (activePlace.access === "admin") return;
+    if (activePlace.id === "main-story") {
+      navigate("events");
+      return;
+    }
+    onToast(`已前往${activePlace.name}：${activePlace.action}`);
+  };
   return (
     <div>
-      <PageHeading eyebrow="PALACE MAP" title="宮城輿圖" description="循著朱牆與水榭前行，每處宮苑都有正在發生的故事。" />
+      <PageHeading eyebrow="PALACE MAP" title="宮城輿圖" description="地點與用途依《遊戲規則／地圖介紹》呈現；數值結果仍由正式後端結算。" />
       <div className="map-layout">
         <div className="map-main">
           <section className="palace-map">
-            <img src="./assets/palace-hero.webp" alt="宮城地圖場景" />
             <div className="map-vignette" />
+            <div className="map-axis axis-north">北・內廷管理</div>
+            <div className="map-axis axis-center">數值提升點</div>
+            <div className="map-axis axis-south">宮中各地</div>
             {mapPlaces.map((place) => (
               <button
                 key={place.id}
-                className={`map-pin ${activePlace.id === place.id ? "active" : ""}`}
+                className={`map-pin ${place.access} ${activePlace.id === place.id ? "active" : ""}`}
                 style={{ left: `${place.x}%`, top: `${place.y}%` }}
                 onClick={() => setActivePlace(place)}
               ><i><Landmark size={17} /></i><span>{place.name}</span></button>
             ))}
-            <div className="map-legend"><span><i className="dot active" />事件進行中</span><span><i className="dot" />一般地點</span></div>
+            <div className="map-legend"><span><i className="dot active" />目前選取</span><span><i className="dot" />玩家可進入</span><span><i className="dot restricted" />限制區域</span></div>
           </section>
           <div className="scene-strip" aria-label="宮廷場景選擇">
             {mapPlaces.map((place) => (
@@ -262,12 +272,14 @@ function MapView({ onToast }: { onToast: (message: string) => void }) {
           </div>
         </div>
         <aside className="place-panel section-card">
-          <div className="place-illustration"><img src={activePlace.image} alt={`${activePlace.name}場景`} /><span>{activePlace.status}</span></div>
-          <p className="eyebrow">SELECTED PLACE</p>
+          <div className="place-illustration"><img src={activePlace.image} alt={`${activePlace.name}場景示意`} /><em>場景示意</em><span>{activePlace.status}</span></div>
+          <p className="eyebrow">{activePlace.category}・SELECTED PLACE</p>
           <h2>{activePlace.name}</h2>
+          <strong className="place-note">{activePlace.note}</strong>
           <p>{activePlace.description}</p>
-          <div className="place-details"><span>開放時辰<strong>辰時至亥時</strong></span><span>目前人物<strong>{activePlace.id === "penglai" ? "24 人" : "6 人"}</strong></span></div>
-          <button className="primary-button full" onClick={() => onToast(`已進入${activePlace.name}`)}>進入此處 <ChevronRight size={17} /></button>
+          <div className="place-details"><span>主要行動<strong>{activePlace.action}</strong></span><span>次數／權限<strong>{activePlace.limit}</strong></span></div>
+          {activePlace.subplaces && <ul className="subplace-list">{activePlace.subplaces.map((subplace) => <li key={subplace}>{subplace}</li>)}</ul>}
+          <button className="primary-button full" disabled={activePlace.access === "admin"} onClick={enterPlace}>{activePlace.access === "admin" ? "管理員專用" : activePlace.action} <ChevronRight size={17} /></button>
         </aside>
       </div>
     </div>
@@ -282,8 +294,8 @@ function EventsView({ onToast }: { onToast: (message: string) => void }) {
   const activeEvent = events.find((item) => item.id === activeId)!;
   const activeScene = mapPlaces.find((place) => place.name === activeEvent.place)?.image ?? "./assets/palace-hero.webp";
   const [posts] = useState([
-    { name: "蘇婕妤", time: "14:28", text: "池畔新柳正好，我命人備了幾枝白玉蘭。若諸位不嫌，便以此作今日雅題。", avatar: "蘇" },
-    { name: "沈知微", time: "14:35", text: "玉蘭素淨，倒與今日的天色相襯。只是方才經過水榭，似聽見有人提起那封宮箋。", avatar: "沈" },
+    { name: "蘇婕妤", time: "14:28", text: "奉天樓鐘聲初起，我在階前見到一支褪色舊籤，不知是否與今日春祭有關。", avatar: "蘇" },
+    { name: "沈知微", time: "14:35", text: "觀仙台籤冊向來由專人收存。若這支籤不在冊中，恐怕不是偶然遺落。", avatar: "沈" },
   ]);
 
   const saveDraft = () => {
@@ -320,7 +332,7 @@ function EventsView({ onToast }: { onToast: (message: string) => void }) {
           </header>
           <div className="deadline-banner"><CalendarDays size={17} /><span>本回合截止：<strong>{activeEvent.deadline}</strong></span><em>尚可投稿</em></div>
           <div className="posts">
-            <div className="narrator-post"><span>司簿</span><p>春水初生，蓬萊池畔已設曲水席。眾人依次入座時，一名小宮女匆匆經過，袖中似有紙角落下。</p></div>
+            <div className="narrator-post"><span>司簿</span><p>奉天樓鐘聲傳遍宮城，內務府將主線章節張貼於宮中。獲邀者可在截止前留下自己的角色回應。</p></div>
             {posts.map((post, index) => <article className="player-post" key={`${post.time}-${index}`}><div className="post-avatar">{post.avatar}</div><div><header><strong>{post.name}</strong><span>{post.time}</span></header><p>{post.text}</p></div></article>)}
           </div>
           <footer className={`composer ${draftStatus === "submitted" ? "submitted" : ""}`}>
@@ -354,7 +366,7 @@ function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; ope
           <p className="eyebrow">CHARACTER NO. 0186</p>
           <h1>{portrait.name}</h1>
           <p className="profile-quote">「花開有時，人心卻未必肯依時節。」</p>
-          <div className="profile-tags"><span>承露宮</span><span>清雅</span><span>沈氏</span></div>
+          <div className="profile-tags"><span>關雎宮</span><span>清雅</span><span>沈氏</span></div>
           <dl><div><dt>入宮</dt><dd>永熙七年・春</dd></div><div><dt>生辰</dt><dd>八月初九</dd></div><div><dt>當前狀態</dt><dd className="safe">安好</dd></div></dl>
         </div>
         <div className="profile-resources"><div><Star /><span>威望</span><strong>286</strong><small>距晉位尚需 134</small></div><div><Coins /><span>銀兩</span><strong>1,840</strong><small>本月俸銀已領</small></div><div><HeartHandshake /><span>恩寵</span><strong>72</strong><small>近七日 +8</small></div></div>
@@ -370,7 +382,50 @@ function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; ope
           <div className="timeline">{chronicle.map((item) => <div key={item.title}><i /><span><small>{item.date}</small><strong>{item.title}</strong><p>{item.detail}</p></span></div>)}</div>
         </section>
       </div>
+      <NpcDirectory />
     </div>
+  );
+}
+
+function NpcDirectory() {
+  const [selectedNpc, setSelectedNpc] = useState<NpcProfile>(npcs[0]);
+  const npcStats = selectedNpc.stats ? [
+    ["體質", selectedNpc.stats.constitution],
+    ["心計", selectedNpc.stats.strategy],
+    ["福氣", selectedNpc.stats.fortune],
+    ["容貌", selectedNpc.stats.appearance],
+  ] : [];
+  return (
+    <section className="npc-archive">
+      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中 NPC</h2><p>資料與人物照片直接採用原始 NPC 介紹文件。</p></div><small>共 {npcs.length} 人</small></div>
+      <div className="npc-layout">
+        <div className="npc-grid" aria-label="NPC 人物列表">
+          {npcs.map((npc) => (
+            <button key={npc.id} className={selectedNpc.id === npc.id ? "active" : ""} onClick={() => setSelectedNpc(npc)}>
+              <img src={npc.image} alt={`${npc.name}・${npc.title}`} loading="lazy" />
+              <span><small>{npc.title}</small><strong>{npc.name}</strong><em>{npc.personality}</em></span>
+            </button>
+          ))}
+        </div>
+        <article className="npc-detail section-card">
+          <div className="npc-detail-image"><img src={selectedNpc.image} alt={`${selectedNpc.name}人物照片`} /><span>官方 NPC</span></div>
+          <div className="npc-detail-copy">
+            <p className="eyebrow">NPC PROFILE・字 {selectedNpc.courtesy}</p>
+            <h2>{selectedNpc.name}<small>{selectedNpc.title}</small></h2>
+            <p className="npc-summary">{selectedNpc.summary}</p>
+            <dl>
+              <div><dt>性格</dt><dd>{selectedNpc.personality}</dd></div>
+              <div><dt>擅長</dt><dd>{selectedNpc.skilled}</dd></div>
+              <div><dt>不擅</dt><dd>{selectedNpc.unskilled}</dd></div>
+              <div><dt>喜歡</dt><dd>{selectedNpc.likes}</dd></div>
+              <div><dt>不喜</dt><dd>{selectedNpc.dislikes}</dd></div>
+              <div className="npc-history"><dt>經歷</dt><dd>{selectedNpc.history}</dd></div>
+            </dl>
+            {npcStats.length > 0 ? <div className="npc-stats">{npcStats.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div> : <p className="npc-no-stats">原始介紹未提供四項數值</p>}
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -435,7 +490,7 @@ function StoryEditorPanel({ onToast }: { onToast: (message: string) => void }) {
   ];
   const [selected, setSelected] = useState(chapters[1]);
   const [title, setTitle] = useState(chapters[1].title);
-  const [summary, setSummary] = useState("子時將近，西六宮傳來不應出現的銀鈴聲。此章將開啟御花園與承露宮兩條調查線。");
+  const [summary, setSummary] = useState("奉天樓春祭將近，觀仙台出現一支不在籤冊中的舊籤；此章將串連藏書閣與主線劇情兩條調查線。");
   const [body, setBody] = useState("## 開場\n\n宮門落鎖後，銀鈴聲自西側迴廊傳來。玩家可選擇循聲查探，或先回宮尋找證人。\n\n### 分支條件\n- 心計 ≥ 600：發現鈴舌上的藥香\n- 與蘇婕妤關係 ≥ 20：取得額外證詞");
 
   const selectChapter = (chapter: typeof chapters[number]) => {
