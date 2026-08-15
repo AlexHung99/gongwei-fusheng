@@ -43,12 +43,13 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { chronicle, events, mapPlaces, npcs, portraits, type NpcProfile, type PortraitOption, type RouteKey } from "./data";
+import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, playerProfiles, portraits, staffMembers, type NpcProfile, type PortraitOption, type RouteKey } from "./data";
 
 const navItems: { id: RouteKey; label: string; icon: typeof Home }[] = [
   { id: "home", label: "今日", icon: Home },
   { id: "map", label: "宮城", icon: Map },
   { id: "events", label: "事件", icon: MessageCircleMore },
+  { id: "players", label: "玩家名冊", icon: Users },
   { id: "character", label: "我的人物", icon: CircleUserRound },
   { id: "more", label: "更多", icon: Menu },
 ];
@@ -58,7 +59,19 @@ const supportConfigured = /^https:\/\/buymeacoffee\.com\/[A-Za-z0-9._-]+\/?$/.te
 
 const routeFromHash = (): RouteKey => {
   const value = window.location.hash.replace("#/", "") as RouteKey;
-  return ["home", "map", "events", "character", "more", "admin"].includes(value) ? value : "home";
+  return ["home", "map", "events", "players", "character", "market", "more", "admin"].includes(value) ? value : "home";
+};
+
+const abilityLabel = (name: string, value: number) => {
+  if (value <= 0) return name === "體質" ? "逝世" : "未定";
+  const labels: Record<string, string[]> = {
+    體質: ["病態", "嬌弱", "無恙", "康健", "強健", "強韌"],
+    心計: ["單純", "直率", "世故", "善謀", "高深", "莫測"],
+    容貌: ["醜儀", "清秀", "端美", "花顏", "國色", "絕世"],
+    福氣: ["霉運", "如願", "如意", "福澤", "祥瑞", "鴻運"],
+  };
+  const index = value >= 800 ? 5 : value >= 600 ? 4 : value >= 400 ? 3 : value >= 200 ? 2 : value >= 100 ? 1 : 0;
+  return labels[name]?.[index] ?? "—";
 };
 
 function App() {
@@ -102,7 +115,7 @@ function App() {
             <button key={id} className={route === id ? "active" : ""} onClick={() => navigate(id)}>
               <Icon size={19} strokeWidth={1.8} />
               <span>{label}</span>
-              {id === "events" && <em>3</em>}
+              {id === "events" && <em>{palaceActivities.length}</em>}
             </button>
           ))}
           <p className="nav-eyebrow nav-eyebrow-spaced">內廷執事</p>
@@ -118,7 +131,7 @@ function App() {
             <span><small>自己的帳號</small><strong>{selectedPortrait.name}</strong><em>{selectedPortrait.note}・安好</em></span>
             <Settings size={15} />
           </button>
-          <div className="sidebar-self-stats"><span>體質<strong>570</strong></span><span>心計<strong>640</strong></span><span>福氣<strong>380</strong></span></div>
+          <div className="sidebar-self-stats"><span>體質<strong>570</strong><em>康健</em></span><span>心計<strong>640</strong><em>高深</em></span><span>容貌<strong>820</strong><em>絕世</em></span><span>福氣<strong>380</strong><em>如意</em></span></div>
           <button className="sidebar-history-link" onClick={() => navigate("character")}><History size={13} />查看狀態與數值歷史</button>
         </section>
       </aside>
@@ -140,9 +153,11 @@ function App() {
 
         <main className="page-content">
           {route === "home" && <HomeView navigate={navigate} onToast={setToast} />}
-          {route === "map" && <MapView onToast={setToast} />}
+          {route === "map" && <MapView navigate={navigate} onToast={setToast} />}
           {route === "events" && <EventsView onToast={setToast} />}
+          {route === "players" && <PlayerDirectoryView />}
           {route === "character" && <CharacterView portrait={selectedPortrait} openPicker={() => setPortraitPickerOpen(true)} />}
+          {route === "market" && <MarketView onToast={setToast} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
           {route === "admin" && <AdminView onToast={setToast} />}
         </main>
@@ -236,12 +251,19 @@ function EventRow({ event, onClick }: { event: typeof events[number]; onClick: (
   return <button className="event-row" onClick={onClick}><i className={event.tone}><ScrollText /></i><span><em>{event.label}</em><strong>{event.title}</strong><small>{event.place}・{event.participants} 人參與</small></span><div><small>{event.deadline}</small><ChevronRight /></div></button>;
 }
 
-function MapView({ onToast }: { onToast: (message: string) => void }) {
+function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
   const [activePlace, setActivePlace] = useState(mapPlaces[1]);
   const enterPlace = () => {
-    if (activePlace.access === "admin") return;
     if (activePlace.id === "npc-archive") {
       document.getElementById("npc-directory")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (activePlace.id === "neiwufu") {
+      document.getElementById("staff-directory")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (activePlace.id === "market") {
+      navigate("market");
       return;
     }
     onToast(`已前往${activePlace.name}：${activePlace.action}`);
@@ -252,7 +274,7 @@ function MapView({ onToast }: { onToast: (message: string) => void }) {
       <div className="map-layout">
         <div className="map-main">
           <section className="palace-map">
-            <img src="./assets/map-v2/palace-map-v2.webp" alt="宮城核心地點與人物名冊入口鳥瞰圖" />
+            <img src="./assets/map-v2/palace-map-v2.webp" alt="宮城行動地點、宮市與人物名冊入口鳥瞰圖" />
             <div className="map-vignette" />
             <div className="map-axis axis-north">北・內廷管理</div>
             <div className="map-axis axis-center">數值提升點</div>
@@ -265,7 +287,7 @@ function MapView({ onToast }: { onToast: (message: string) => void }) {
                 onClick={() => setActivePlace(place)}
               ><i><Landmark size={17} /></i><span>{place.name}</span></button>
             ))}
-            <div className="map-legend"><span><i className="dot active" />目前選取</span><span><i className="dot" />玩家可進入</span><span><i className="dot restricted" />限制區域</span></div>
+            <div className="map-legend"><span><i className="dot active" />目前選取</span><span><i className="dot" />行動地點</span><span><i className="dot restricted" />資訊入口</span></div>
           </section>
           <div className="scene-strip" aria-label="宮廷場景選擇">
             {mapPlaces.map((place) => (
@@ -284,80 +306,66 @@ function MapView({ onToast }: { onToast: (message: string) => void }) {
           <p>{activePlace.description}</p>
           <div className="place-details"><span>主要行動<strong>{activePlace.action}</strong></span><span>次數／權限<strong>{activePlace.limit}</strong></span></div>
           {activePlace.subplaces && <ul className="subplace-list">{activePlace.subplaces.map((subplace) => <li key={subplace}>{subplace}</li>)}</ul>}
-          <button className="primary-button full" disabled={activePlace.access === "admin"} onClick={enterPlace}>{activePlace.access === "admin" ? "管理員專用" : activePlace.action} <ChevronRight size={17} /></button>
+          <button className="primary-button full" onClick={enterPlace}>{activePlace.action} <ChevronRight size={17} /></button>
         </aside>
       </div>
+      {activePlace.id === "neiwufu" && <StaffDirectory />}
       {activePlace.id === "npc-archive" && <NpcDirectory />}
     </div>
   );
 }
 
 function EventsView({ onToast }: { onToast: (message: string) => void }) {
-  const [activeId, setActiveId] = useState(events[0].id);
-  const [message, setMessage] = useState("");
-  const [draftStatus, setDraftStatus] = useState<"editing" | "submitted">("editing");
-  const [lastSaved, setLastSaved] = useState("尚未儲存");
-  const activeEvent = events.find((item) => item.id === activeId)!;
-  const activeScene = mapPlaces.find((place) => place.name === activeEvent.place)?.image ?? "./assets/palace-hero.webp";
-  const [posts] = useState([
-    { name: "蘇婕妤", time: "14:28", text: "奉天樓鐘聲初起，我在階前見到一支褪色舊籤，不知是否與今日春祭有關。", avatar: "蘇" },
-    { name: "沈知微", time: "14:35", text: "觀仙台籤冊向來由專人收存。若這支籤不在冊中，恐怕不是偶然遺落。", avatar: "沈" },
-  ]);
-
-  const saveDraft = () => {
-    setLastSaved("方才已儲存");
-    onToast("事件草稿已儲存，尚未公開");
-  };
-
-  const submit = () => {
-    if (!message.trim()) return;
-    setDraftStatus("submitted");
-    setLastSaved("已送出審核");
-    onToast("投稿已送出，管理員核准後才會公開");
-  };
+  const [placeFilter, setPlaceFilter] = useState("全部地點");
+  const [playerFilter, setPlayerFilter] = useState("全部玩家");
+  const [activeId, setActiveId] = useState(palaceActivities[0].id);
+  const places = ["全部地點", ...Array.from(new Set(palaceActivities.map((item) => item.place)))];
+  const players = ["全部玩家", ...Array.from(new Set(palaceActivities.map((item) => item.player)))];
+  const filteredActivities = palaceActivities.filter((item) => (placeFilter === "全部地點" || item.place === placeFilter) && (playerFilter === "全部玩家" || item.player === playerFilter));
+  const activeActivity = filteredActivities.find((item) => item.id === activeId) ?? filteredActivities[0];
+  const activePlayer = playerProfiles.find((player) => player.name === activeActivity?.player);
+  const activeScene = mapPlaces.find((place) => place.name === activeActivity?.place)?.image ?? "./assets/palace-hero.webp";
 
   return (
     <div>
-      <PageHeading eyebrow="STORY ROOMS" title="宮中事件" description="以自己的步調參與篇章；正式結果與截止時間皆以此處為準。" />
-      <div className="events-layout">
-        <aside className="event-list section-card">
-          <div className="event-filter"><button className="active">進行中 <span>3</span></button><button>已結束</button></div>
-          {events.map((event) => (
-            <button key={event.id} className={activeId === event.id ? "active" : ""} onClick={() => setActiveId(event.id)}>
-              <i className={event.tone}><ScrollText size={18} /></i>
-              <span><small>{event.label}</small><strong>{event.title}</strong><em>{event.deadline}</em></span>
+      <PageHeading eyebrow="PALACE ACTIVITY" title="宮中事件" description="依地圖地點或玩家篩選公開歷程，查看行動消耗、數值結果與發生時間。" />
+      <div className="activity-toolbar section-card">
+        <label><span>地圖分類</span><select value={placeFilter} onChange={(event) => setPlaceFilter(event.target.value)}>{places.map((place) => <option key={place}>{place}</option>)}</select></label>
+        <label><span>玩家篩選</span><select value={playerFilter} onChange={(event) => setPlayerFilter(event.target.value)}>{players.map((player) => <option key={player}>{player}</option>)}</select></label>
+        <div><SlidersHorizontal size={17} /><span>共 <strong>{filteredActivities.length}</strong> 筆公開歷程</span></div>
+      </div>
+      <div className="activity-layout">
+        <aside className="activity-list section-card">
+          {filteredActivities.map((activity) => (
+            <button key={activity.id} className={activeActivity?.id === activity.id ? "active" : ""} onClick={() => setActiveId(activity.id)}>
+              <i className={activity.tone}><Landmark size={17} /></i>
+              <span><small>{activity.place}・{activity.time}</small><strong>{activity.player}｜{activity.action}</strong><em>{activity.results.join("・")}</em></span>
+              <ChevronRight size={15} />
             </button>
           ))}
+          {filteredActivities.length === 0 && <p className="empty-state">目前沒有符合條件的公開歷程。</p>}
         </aside>
-
-        <section className="thread section-card">
-          <div className="event-scene-banner"><img src={activeScene} alt={`${activeEvent.place}事件場景`} /><span>{activeEvent.place}</span></div>
-          <header className="thread-header">
-            <div><span>{activeEvent.label}・{activeEvent.place}</span><h2>{activeEvent.title}</h2><p>{activeEvent.description}</p></div>
-            <div className="participant-stack"><i>蘇</i><i>沈</i><i>顧</i><span>+{activeEvent.participants - 3}</span></div>
-          </header>
-          <div className="deadline-banner"><CalendarDays size={17} /><span>本回合截止：<strong>{activeEvent.deadline}</strong></span><em>尚可投稿</em></div>
-          <div className="posts">
-            <div className="narrator-post"><span>司簿</span><p>奉天樓鐘聲傳遍宮城，內務府將主線章節張貼於宮中。獲邀者可在截止前留下自己的角色回應。</p></div>
-            {posts.map((post, index) => <article className="player-post" key={`${post.time}-${index}`}><div className="post-avatar">{post.avatar}</div><div><header><strong>{post.name}</strong><span>{post.time}</span></header><p>{post.text}</p></div></article>)}
-          </div>
-          <footer className={`composer ${draftStatus === "submitted" ? "submitted" : ""}`}>
-            <div><span className="composer-avatar">沈</span><textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="以沈知微的身份寫下回應……" disabled={draftStatus === "submitted"} /></div>
-            <div className="composer-meta"><span>{draftStatus === "submitted" ? "等待管理員審核；退修後才可再編輯" : `${lastSaved}・${message.length} 字`}</span><div><button className="draft-button" onClick={saveDraft} disabled={draftStatus === "submitted"}><Save size={15} />儲存草稿</button><button onClick={submit} disabled={!message.trim() || draftStatus === "submitted"}>{draftStatus === "submitted" ? "審核中" : "送出審核"} <Send size={16} /></button></div></div>
-          </footer>
-        </section>
+        {activeActivity && <section className="activity-detail section-card">
+          <div className="event-scene-banner"><img src={activeScene} alt={`${activeActivity.place}事件場景`} /><span>{activeActivity.place}</span></div>
+          <header><span>{activeActivity.time}・{activeActivity.id}</span><h2>{activeActivity.player}｜{activeActivity.action}</h2><p>{activeActivity.detail}</p></header>
+          <div className="activity-ledger"><div><small>消耗</small><strong>{activeActivity.cost}</strong></div><div><small>取得／變化</small><strong>{activeActivity.results.join("、")}</strong></div></div>
+          {activePlayer && <div className="event-player-card"><img src={activePlayer.image} alt={`${activePlayer.name}人物圖片`} /><span><small>{activePlayer.id}</small><strong>{activePlayer.name}</strong><em>{activePlayer.title}・{activePlayer.status}</em></span><div>{Object.entries({ 體質: activePlayer.stats.constitution, 心計: activePlayer.stats.strategy, 容貌: activePlayer.stats.appearance, 福氣: activePlayer.stats.fortune }).map(([name, value]) => <b key={name}><small>{name}</small>{value}<em>{abilityLabel(name, value)}</em></b>)}</div></div>}
+          <button className="primary-button full" onClick={() => { setPlayerFilter(activeActivity.player); onToast(`已篩選 ${activeActivity.player} 的公開歷程`); }}>只看此玩家的歷程 <ChevronRight size={16} /></button>
+        </section>}
       </div>
     </div>
   );
 }
 
 function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; openPicker: () => void }) {
+  const [historyScope, setHistoryScope] = useState<"today" | "all">("today");
   const stats = [
-    { name: "體質", value: 570, color: "#64726e" },
-    { name: "容貌", value: 820, color: "#b18a49" },
-    { name: "心計", value: 640, color: "#385e5a" },
-    { name: "福氣", value: 380, color: "#a4534b" },
+    { name: "體質", value: 570, color: "#64726e", label: abilityLabel("體質", 570) },
+    { name: "容貌", value: 820, color: "#b18a49", label: abilityLabel("容貌", 820) },
+    { name: "心計", value: 640, color: "#385e5a", label: abilityLabel("心計", 640) },
+    { name: "福氣", value: 380, color: "#a4534b", label: abilityLabel("福氣", 380) },
   ];
+  const visibleChronicle = historyScope === "today" ? chronicle.filter((item) => item.period === "today") : chronicle;
   return (
     <div>
       <PageHeading eyebrow="MY CHARACTER" title="我的人物" description="只顯示玩家自己的角色狀態、能力、資源，以及每次事件造成的數值異動。" />
@@ -381,11 +389,12 @@ function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; ope
       <div className="character-grid">
         <section className="section-card stats-card">
           <div className="section-title"><div><span>ABILITIES</span><h2>人物能力</h2></div></div>
-          {stats.map((stat) => <div className="stat-line" key={stat.name}><span>{stat.name}</span><div><i style={{ width: `${stat.value / 10}%`, background: stat.color }} /></div><strong>{stat.value}</strong></div>)}
+          {stats.map((stat) => <div className="stat-line" key={stat.name}><span>{stat.name}<em>{stat.label}</em></span><div><i style={{ width: `${stat.value / 10}%`, background: stat.color }} /></div><strong>{stat.value}</strong></div>)}
         </section>
         <section className="section-card chronicle-card">
-          <div className="section-title"><div><span>VALUE HISTORY</span><h2>狀態與數值歷史</h2></div><button>完整紀錄</button></div>
-          <div className="timeline">{chronicle.map((item) => <div key={`${item.date}-${item.title}`}><i /><span><small>{item.date}<em>{item.source}</em></small><strong>{item.title}</strong><p>{item.detail}</p><div className="value-changes">{item.changes.map((change) => <b className={change.delta >= 0 ? "up" : "down"} key={`${item.title}-${change.label}`}>{change.label} {change.delta >= 0 ? "+" : ""}{change.delta}<small>{change.before} → {change.after}</small></b>)}</div></span></div>)}</div>
+          <div className="section-title"><div><span>VALUE HISTORY</span><h2>遊玩歷程</h2></div><div className="history-scope"><button className={historyScope === "today" ? "active" : ""} onClick={() => setHistoryScope("today")}>今日</button><button className={historyScope === "all" ? "active" : ""} onClick={() => setHistoryScope("all")}>歷史</button></div></div>
+          <div className="history-query"><CalendarDays size={15} /><span>{historyScope === "today" ? "永熙七年・春三月初七的全部歷程" : "全部歷史紀錄；正式版可依日期區間查詢"}</span><input type="date" aria-label="查詢歷程日期" /></div>
+          <div className="timeline">{visibleChronicle.map((item) => <div key={`${item.date}-${item.title}`}><i /><span><small>{item.date}<em>{item.source}</em></small><strong>{item.title}</strong><p>{item.detail}</p><div className="value-changes">{item.changes.map((change) => <b className={change.delta >= 0 ? "up" : "down"} key={`${item.title}-${change.label}`}>{change.label} {change.delta >= 0 ? "+" : ""}{change.delta}<small>{change.before} → {change.after}</small></b>)}</div></span></div>)}</div>
         </section>
       </div>
     </div>
@@ -426,13 +435,50 @@ function NpcDirectory() {
               <div><dt>不喜</dt><dd>{selectedNpc.dislikes}</dd></div>
               <div className="npc-history"><dt>經歷</dt><dd>{selectedNpc.history}</dd></div>
             </dl>
-            {npcStats.length > 0 ? <div className="npc-stats">{npcStats.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div> : <p className="npc-no-stats">原始介紹未提供四項數值</p>}
+            {npcStats.length > 0 ? <div className="npc-stats">{npcStats.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong><em>{abilityLabel(String(label), Number(value))}</em></span>)}</div> : <p className="npc-no-stats">原始介紹未提供四項數值</p>}
             <section className="npc-story"><span>人物故事</span>{selectedNpc.story.map((paragraph, index) => <p key={`${selectedNpc.id}-story-${index}`}>{paragraph}</p>)}</section>
           </div>
         </article>
       </div>
     </section>
   );
+}
+
+function StaffDirectory() {
+  return <section className="staff-directory" id="staff-directory"><div className="section-title npc-title"><div><span>IMPERIAL HOUSEHOLD STAFF</span><h2>內務府管理名單</h2><p>玩家可查看執事分工與最近上線時間；管理後台權限不會因此公開。</p></div><small>共 {staffMembers.length} 人</small></div><div className="staff-grid">{staffMembers.map((member, index) => <article className="section-card" key={member.name}><i>{String(index + 1).padStart(2, "0")}</i><span><small>{member.role}</small><strong>{member.name}</strong><p>{member.duty}</p></span><em className={member.online === "在線" ? "online" : ""}>{member.online}</em></article>)}</div></section>;
+}
+
+function PlayerDirectoryView() {
+  const pageSize = 5;
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedPlayer, setSelectedPlayer] = useState(playerProfiles[0]);
+  const [scope, setScope] = useState<"today" | "all">("today");
+  const sortedPlayers = [...playerProfiles].sort((a, b) => a.onlineMinutes - b.onlineMinutes).filter((player) => `${player.name}${player.title}${player.status}`.includes(query.trim()));
+  const pageCount = Math.max(1, Math.ceil(sortedPlayers.length / pageSize));
+  const visiblePlayers = sortedPlayers.slice((page - 1) * pageSize, page * pageSize);
+  const playerActivities = scope === "today" ? selectedPlayer.activities.filter((item) => item.time.startsWith("今日")) : selectedPlayer.activities;
+  const statEntries = [
+    ["體質", selectedPlayer.stats.constitution],
+    ["心計", selectedPlayer.stats.strategy],
+    ["容貌", selectedPlayer.stats.appearance],
+    ["福氣", selectedPlayer.stats.fortune],
+  ] as const;
+  const changePage = (nextPage: number) => {
+    setPage(nextPage);
+    const firstOnPage = sortedPlayers[(nextPage - 1) * pageSize];
+    if (firstOnPage) setSelectedPlayer(firstOnPage);
+  };
+  return <div><PageHeading eyebrow="PLAYER DIRECTORY" title="玩家名冊" description="依最近上線時間排序；可查看玩家當前公開狀態、今日歷程與歷史歷程。" /><div className="player-directory-layout"><aside className="player-list-panel section-card"><div className="player-search"><Search size={16} /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="搜尋姓名、位階或狀態" /></div><div className="player-sort-note"><Users size={15} />最近上線優先・共 {sortedPlayers.length} 人</div><div className="player-list">{visiblePlayers.map((player) => <button key={player.id} className={selectedPlayer.id === player.id ? "active" : ""} onClick={() => setSelectedPlayer(player)}><img src={player.image} alt="" /><span><small>{player.title}</small><strong>{player.name}</strong><em>{player.status}</em></span><b className={player.onlineMinutes === 0 ? "online" : ""}>{player.onlineLabel}</b></button>)}</div><div className="pagination"><button disabled={page === 1} onClick={() => changePage(page - 1)}>上一頁</button><span>{page} / {pageCount}</span><button disabled={page === pageCount} onClick={() => changePage(page + 1)}>下一頁</button></div></aside><section className="player-public-profile section-card"><header><img src={selectedPlayer.image} alt={`${selectedPlayer.name}人物圖片`} /><span><small>{selectedPlayer.id}</small><h2>{selectedPlayer.name}</h2><p>{selectedPlayer.title}・{selectedPlayer.status}</p></span><em>{selectedPlayer.onlineLabel}</em></header><div className="public-stat-grid">{statEntries.map(([name, value]) => <div key={name}><small>{name}</small><strong>{value}</strong><em>{abilityLabel(name, value)}</em></div>)}</div><div className="public-history-head"><div><span>PUBLIC ACTIVITY</span><h3>公開遊玩歷程</h3></div><div className="history-scope"><button className={scope === "today" ? "active" : ""} onClick={() => setScope("today")}>今日</button><button className={scope === "all" ? "active" : ""} onClick={() => setScope("all")}>歷史</button></div></div><div className="public-activity-list">{playerActivities.map((activity) => <article key={activity.id}><i><Landmark size={15} /></i><span><small>{activity.time}・{activity.place}</small><strong>{activity.action}</strong><p>{activity.detail}</p><em>{activity.cost}｜{activity.results.join("、")}</em></span></article>)}{playerActivities.length === 0 && <p className="empty-state">目前沒有可公開的{scope === "today" ? "今日" : "歷史"}歷程。</p>}</div></section></div></div>;
+}
+
+function MarketView({ onToast }: { onToast: (message: string) => void }) {
+  const balance = 1840;
+  const categories = ["全部", "媚", "輔", "欺", "毒", "解", "其"] as const;
+  const [category, setCategory] = useState<(typeof categories)[number]>("全部");
+  const [query, setQuery] = useState("");
+  const visibleItems = marketItems.filter((item) => (category === "全部" || item.category === category) && `${item.name}${item.effect}`.includes(query.trim()));
+  return <div><PageHeading eyebrow="PALACE MARKET" title="宮市" description="依《遊戲規則／宮市》呈現六類道具；使用自己的俸祿／銀兩購買，高風險效果需管理員確認。" /><section className="market-hero section-card"><img src="./assets/map-v2/place-market-v1.webp" alt="宮市內部場景" /><div><span>AVAILABLE BALANCE</span><h2>目前俸祿／銀兩</h2><strong><Coins size={21} />{balance.toLocaleString()}</strong><p>購買與使用會分別留下永久歷程；被下毒後依原規則有一小時可購買解藥。</p></div></section><div className="market-toolbar section-card"><div className="market-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div><label><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋道具或效果" /></label></div><div className="market-grid">{visibleItems.map((item) => { const affordable = item.price <= balance; return <article className={`market-item section-card ${item.risk ?? ""}`} key={`${item.category}-${item.name}`}><header><span>{item.category}</span>{item.risk === "danger" ? <em>高風險・需裁決</em> : item.risk === "moderated" ? <em>需管理員確認</em> : <em>一般道具</em>}</header><h3>{item.name}</h3><p>{item.effect}</p><footer><strong><Coins size={15} />{item.price.toLocaleString()}</strong><button disabled={!affordable} onClick={() => onToast(item.risk ? `「${item.name}」已加入購買確認，需管理員核准後結算` : `已開啟「${item.name}」購買確認；目前不會直接扣款`)}>{affordable ? "購買" : "俸祿不足"}</button></footer></article>; })}</div></div>;
 }
 
 function MoreView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
@@ -443,7 +489,7 @@ function MoreView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
     { icon: ScrollText, title: "數值紀錄", text: "事件造成的能力、資源與狀態異動", badge: "" },
     { icon: BookOpen, title: "玩法規則", text: "宮規、身份與社群互動原則", badge: "" },
   ];
-  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="管理自己的道具、皇嗣與數值異動，亦可查閱最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>此處為介面原型；正式管理後台部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("admin")}>查看後台原型</button></section></div>;
+  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="管理自己的道具、皇嗣與數值異動，亦可查閱最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : title === "宮市" ? navigate("market") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>玩家可在宮城的內務府查看管理名單；正式後台仍部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("map")}>查看管理名單</button></section></div>;
 }
 
 function AdminView({ onToast }: { onToast: (message: string) => void }) {
@@ -540,7 +586,7 @@ function SupportModal({ onClose }: { onClose: () => void }) {
 }
 
 function NotificationPanel({ onClose }: { onClose: () => void }) {
-  return <aside className="notification-panel"><header><div><span>NOTIFICATIONS</span><h2>宮中傳報</h2></div><button onClick={onClose} aria-label="關閉通知"><X /></button></header><div className="notification-item unread"><i><ScrollText /></i><span><strong>上巳春宴即將開始</strong><p>請於酉時前選妥服儀並進入事件房。</p><small>12 分鐘前</small></span></div><div className="notification-item unread"><i><Coins /></i><span><strong>本月俸銀已入帳</strong><p>獲得銀兩 420，可至帳本查看。</p><small>1 小時前</small></span></div><div className="notification-item unread"><i><HeartHandshake /></i><span><strong>關係有所變化</strong><p>蘇婕妤對你的印象似乎改變了。</p><small>昨日</small></span></div><button className="all-notifications">查看所有傳報</button></aside>;
+  return <aside className="notification-panel"><header><div><span>NOTIFICATIONS</span><h2>宮中傳報</h2></div><button onClick={onClose} aria-label="關閉通知"><X /></button></header><div className="notification-item unread"><i><ScrollText /></i><span><strong>上巳春宴即將開始</strong><p>請於酉時前選妥服儀並進入事件房。</p><small>12 分鐘前</small></span></div><div className="notification-item unread"><i><Coins /></i><span><strong>本月俸銀已入帳</strong><p>獲得銀兩 420，可至帳本查看。</p><small>1 小時前</small></span></div><div className="notification-item unread"><i><History /></i><span><strong>今日歷程已更新</strong><p>太醫院問診與數值前後值已寫入人物歷程。</p><small>昨日</small></span></div><button className="all-notifications">查看所有傳報</button></aside>;
 }
 
 function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onClose: () => void; onSelect: (portrait: PortraitOption) => void }) {
