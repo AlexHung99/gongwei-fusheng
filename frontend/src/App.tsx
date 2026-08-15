@@ -182,7 +182,8 @@ function App() {
         <header className="topbar">
           <div className="date-chip"><CalendarDays size={16} /><span>永熙七年・春三月初七</span></div>
           <div className="top-actions">
-            <button className="search-button" aria-label="搜尋"><Search size={18} /><span>搜尋宮中人事</span></button>
+            <button className="top-line-button" onClick={() => setToast("LINE Login 將由後端 OAuth 登入端點開啟")} aria-label="使用 LINE 登入"><MessageCircleMore size={17} /><span>LINE 登入</span></button>
+            <button className="top-register-button" onClick={() => setToast("註冊角色需先完成 LINE 登入；登入後會進入建角填單")} aria-label="註冊角色"><FilePenLine size={16} /><span>註冊</span></button>
             <button className="top-coffee-button" onClick={() => setSupportOpen(true)} aria-label="請我們喝杯咖啡"><Coffee size={17} /><span>請喝咖啡</span></button>
             <button className="icon-button notification-button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-label="通知">
               <Bell size={19} /><i>3</i>
@@ -200,7 +201,7 @@ function App() {
           {route === "players" && <PlayerDirectoryView />}
           {route === "character" && <CharacterView portrait={selectedPortrait} balance={balance} inventory={inventory} openPicker={() => setPortraitPickerOpen(true)} navigate={navigate} onUse={useInventoryItem} />}
           {route === "market" && <MarketView balance={balance} onPurchase={purchaseItem} />}
-          {route === "more" && <MoreView navigate={navigate} onToast={setToast} inventoryCount={inventory.reduce((sum, entry) => sum + entry.quantity, 0)} />}
+          {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
           {route === "admin" && <AdminView onToast={setToast} />}
         </main>
       </div>
@@ -537,15 +538,13 @@ function MarketView({ balance, onPurchase }: { balance: number; onPurchase: (ite
   return <div><PageHeading eyebrow="PALACE MARKET" title="宮市" description="依《遊戲規則／宮市》呈現六類道具；使用自己的俸祿／銀兩購買，購得後可在我的人物查看與使用。" /><section className="market-hero section-card"><img src="./assets/map-v2/place-market-v1.webp" alt="宮市內部場景" /><div><span>AVAILABLE BALANCE</span><h2>目前俸祿／銀兩</h2><strong><Coins size={21} />{balance.toLocaleString()}</strong><p>購買與使用會分別留下永久歷程；被下毒後依原規則有一小時可購買解藥。</p></div></section><div className="market-toolbar section-card"><div className="market-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div><label><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋道具或效果" /></label></div><div className="market-grid">{visibleItems.map((item) => { const affordable = item.price <= balance; return <article className={`market-item section-card ${item.risk ?? ""}`} key={`${item.category}-${item.name}`}><header><span>{item.category}</span>{item.risk === "danger" ? <em>高風險・需裁決</em> : item.risk === "moderated" ? <em>需管理員確認</em> : <em>一般道具</em>}</header><h3>{item.name}</h3><p>{item.effect}</p><footer><strong><Coins size={15} />{item.price.toLocaleString()}</strong><button disabled={!affordable} onClick={() => onPurchase(item)}>{affordable ? item.risk ? "申請購買" : "購買" : "俸祿不足"}</button></footer></article>; })}</div></div>;
 }
 
-function MoreView({ navigate, onToast, inventoryCount }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void; inventoryCount: number }) {
+function MoreView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
   const items = [
-    { icon: ShoppingBag, title: "宮市", text: "服儀、香藥與宮中器物", badge: "新貨" },
-    { icon: PackageOpen, title: "庫存", text: "在我的人物查看持有道具與使用", badge: String(inventoryCount) },
     { icon: Crown, title: "皇嗣紀錄", text: "生育狀態、待生池與子女", badge: "" },
     { icon: ScrollText, title: "數值紀錄", text: "事件造成的能力、資源與狀態異動", badge: "" },
     { icon: BookOpen, title: "玩法規則", text: "宮規、身份與社群互動原則", badge: "" },
   ];
-  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="管理自己的道具、皇嗣與數值異動，亦可查閱最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" || title === "庫存" ? navigate("character") : title === "宮市" ? navigate("market") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>玩家可在宮城的內務府查看管理名單；正式後台仍部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("map")}>查看管理名單</button></section></div>;
+  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="查看皇嗣、數值紀錄與最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>玩家可在宮城的內務府查看管理名單；正式後台仍部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("map")}>查看管理名單</button></section></div>;
 }
 
 function AdminView({ onToast }: { onToast: (message: string) => void }) {
