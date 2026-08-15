@@ -49,7 +49,7 @@ const navItems: { id: RouteKey; label: string; icon: typeof Home }[] = [
   { id: "home", label: "今日", icon: Home },
   { id: "map", label: "宮城", icon: Map },
   { id: "events", label: "事件", icon: MessageCircleMore },
-  { id: "character", label: "人物", icon: CircleUserRound },
+  { id: "character", label: "我的人物", icon: CircleUserRound },
   { id: "more", label: "更多", icon: Menu },
 ];
 
@@ -112,11 +112,15 @@ function App() {
           </button>
         </nav>
 
-        <div className="sidebar-profile">
-          <img src={selectedPortrait.src} alt={`${selectedPortrait.name}人物立繪`} />
-          <span><strong>{selectedPortrait.name}</strong><small>{selectedPortrait.note}</small></span>
-          <button aria-label="人物設定" onClick={() => navigate("character")}><Settings size={16} /></button>
-        </div>
+        <section className="sidebar-profile" aria-label="自己的帳號與角色狀態">
+          <button className="sidebar-profile-main" onClick={() => navigate("character")}>
+            <img src={selectedPortrait.src} alt={`${selectedPortrait.name}人物立繪`} />
+            <span><small>自己的帳號</small><strong>{selectedPortrait.name}</strong><em>{selectedPortrait.note}・安好</em></span>
+            <Settings size={15} />
+          </button>
+          <div className="sidebar-self-stats"><span>體質<strong>570</strong></span><span>心計<strong>640</strong></span><span>福氣<strong>380</strong></span></div>
+          <button className="sidebar-history-link" onClick={() => navigate("character")}><History size={13} />查看狀態與數值歷史</button>
+        </section>
       </aside>
 
       <div className="main-column">
@@ -136,7 +140,7 @@ function App() {
 
         <main className="page-content">
           {route === "home" && <HomeView navigate={navigate} onToast={setToast} />}
-          {route === "map" && <MapView navigate={navigate} onToast={setToast} />}
+          {route === "map" && <MapView onToast={setToast} />}
           {route === "events" && <EventsView onToast={setToast} />}
           {route === "character" && <CharacterView portrait={selectedPortrait} openPicker={() => setPortraitPickerOpen(true)} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
@@ -232,12 +236,12 @@ function EventRow({ event, onClick }: { event: typeof events[number]; onClick: (
   return <button className="event-row" onClick={onClick}><i className={event.tone}><ScrollText /></i><span><em>{event.label}</em><strong>{event.title}</strong><small>{event.place}・{event.participants} 人參與</small></span><div><small>{event.deadline}</small><ChevronRight /></div></button>;
 }
 
-function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
+function MapView({ onToast }: { onToast: (message: string) => void }) {
   const [activePlace, setActivePlace] = useState(mapPlaces[1]);
   const enterPlace = () => {
     if (activePlace.access === "admin") return;
-    if (activePlace.id === "main-story") {
-      navigate("events");
+    if (activePlace.id === "npc-archive") {
+      document.getElementById("npc-directory")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     onToast(`已前往${activePlace.name}：${activePlace.action}`);
@@ -248,7 +252,7 @@ function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; o
       <div className="map-layout">
         <div className="map-main">
           <section className="palace-map">
-            <img src="./assets/map-v2/palace-map-v2.webp" alt="宮城七處核心地點鳥瞰圖" />
+            <img src="./assets/map-v2/palace-map-v2.webp" alt="宮城核心地點與人物名冊入口鳥瞰圖" />
             <div className="map-vignette" />
             <div className="map-axis axis-north">北・內廷管理</div>
             <div className="map-axis axis-center">數值提升點</div>
@@ -283,6 +287,7 @@ function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; o
           <button className="primary-button full" disabled={activePlace.access === "admin"} onClick={enterPlace}>{activePlace.access === "admin" ? "管理員專用" : activePlace.action} <ChevronRight size={17} /></button>
         </aside>
       </div>
+      {activePlace.id === "npc-archive" && <NpcDirectory />}
     </div>
   );
 }
@@ -355,7 +360,7 @@ function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; ope
   ];
   return (
     <div>
-      <PageHeading eyebrow="CHARACTER ARCHIVE" title="人物卷宗" description="你在宮中的每一步，都將留在這卷未完的生涯之中。" />
+      <PageHeading eyebrow="MY CHARACTER" title="我的人物" description="只顯示玩家自己的角色狀態、能力、資源，以及每次事件造成的數值異動。" />
       <section className="profile-hero section-card">
         <div className="profile-art">
           <img src={portrait.src} alt={`${portrait.name}人物圖片`} />
@@ -379,11 +384,10 @@ function CharacterView({ portrait, openPicker }: { portrait: PortraitOption; ope
           {stats.map((stat) => <div className="stat-line" key={stat.name}><span>{stat.name}</span><div><i style={{ width: `${stat.value / 10}%`, background: stat.color }} /></div><strong>{stat.value}</strong></div>)}
         </section>
         <section className="section-card chronicle-card">
-          <div className="section-title"><div><span>CHRONICLE</span><h2>近日生涯</h2></div><button>完整紀錄</button></div>
-          <div className="timeline">{chronicle.map((item) => <div key={item.title}><i /><span><small>{item.date}</small><strong>{item.title}</strong><p>{item.detail}</p></span></div>)}</div>
+          <div className="section-title"><div><span>VALUE HISTORY</span><h2>狀態與數值歷史</h2></div><button>完整紀錄</button></div>
+          <div className="timeline">{chronicle.map((item) => <div key={`${item.date}-${item.title}`}><i /><span><small>{item.date}<em>{item.source}</em></small><strong>{item.title}</strong><p>{item.detail}</p><div className="value-changes">{item.changes.map((change) => <b className={change.delta >= 0 ? "up" : "down"} key={`${item.title}-${change.label}`}>{change.label} {change.delta >= 0 ? "+" : ""}{change.delta}<small>{change.before} → {change.after}</small></b>)}</div></span></div>)}</div>
         </section>
       </div>
-      <NpcDirectory />
     </div>
   );
 }
@@ -397,8 +401,8 @@ function NpcDirectory() {
     ["容貌", selectedNpc.stats.appearance],
   ] : [];
   return (
-    <section className="npc-archive">
-      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中 NPC</h2><p>人物設定依原始介紹文件整理，立繪為重新繪製版本。</p></div><small>共 {npcs.length} 人</small></div>
+    <section className="npc-archive" id="npc-directory">
+      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中人物名冊</h2><p>從宮城輿圖查閱官方 NPC 的人物設定、能力、經歷與個人故事。</p></div><small>共 {npcs.length} 人</small></div>
       <div className="npc-layout">
         <div className="npc-grid" aria-label="NPC 人物列表">
           {npcs.map((npc) => (
@@ -423,6 +427,7 @@ function NpcDirectory() {
               <div className="npc-history"><dt>經歷</dt><dd>{selectedNpc.history}</dd></div>
             </dl>
             {npcStats.length > 0 ? <div className="npc-stats">{npcStats.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div> : <p className="npc-no-stats">原始介紹未提供四項數值</p>}
+            <section className="npc-story"><span>人物故事</span>{selectedNpc.story.map((paragraph, index) => <p key={`${selectedNpc.id}-story-${index}`}>{paragraph}</p>)}</section>
           </div>
         </article>
       </div>
@@ -434,12 +439,11 @@ function MoreView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
   const items = [
     { icon: ShoppingBag, title: "宮市", text: "服儀、香藥與宮中器物", badge: "新貨" },
     { icon: PackageOpen, title: "庫存", text: "查看持有道具與使用紀錄", badge: "12" },
-    { icon: HeartHandshake, title: "人物關係", text: "NPC 與真人玩家關係摘要", badge: "" },
     { icon: Crown, title: "皇嗣紀錄", text: "生育狀態、待生池與子女", badge: "" },
-    { icon: ScrollText, title: "生涯紀錄", text: "事件、晉位、獎懲與宮中歲月", badge: "" },
+    { icon: ScrollText, title: "數值紀錄", text: "事件造成的能力、資源與狀態異動", badge: "" },
     { icon: BookOpen, title: "玩法規則", text: "宮規、身份與社群互動原則", badge: "" },
   ];
-  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="管理道具、關係與生涯紀錄，亦可查閱最新宮規。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>此處為介面原型；正式管理後台部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("admin")}>查看後台原型</button></section></div>;
+  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="管理自己的道具、皇嗣與數值異動，亦可查閱最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>此處為介面原型；正式管理後台部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("admin")}>查看後台原型</button></section></div>;
 }
 
 function AdminView({ onToast }: { onToast: (message: string) => void }) {
