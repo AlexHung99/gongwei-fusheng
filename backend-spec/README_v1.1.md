@@ -13,12 +13,13 @@ LINE Developers Console 已登錄正式 Callback；Channel 目前維持 `Develop
 發生內容衝突時，後端開發依下列順序判定：
 
 1. [後端規格書_v1.1.md](../後端規格書_v1.1.md)：系統邊界、非功能需求、交易、權限與驗收標準。
-2. [api_v1_v1.1.md](./api_v1_v1.1.md)：HTTP Method、Path、DTO、狀態碼及錯誤碼。
-3. [schema_v1.1.sql](./schema_v1.1.sql)：資料表、FK、Check、Unique、Index、Trigger 與不可變資料規則。
-4. [line_login_v1.1.md](./line_login_v1.1.md)：LINE Login、Cookie Session、CSRF、CORS 與正式環境設定。
-5. [rank_catalog_v1.1.md](./rank_catalog_v1.1.md)：完整位階、門檻、初始能力與俸祿。
-6. [seed_rules_v1.1.sql](./seed_rules_v1.1.sql)：能力標籤、地點、位階及已確認規則的 Seed。
-7. [seed_npcs_v1.1.sql](./seed_npcs_v1.1.sql)：現有 8 位 NPC 的初始已發布內容與立繪路徑；只補缺少 Code，不覆蓋 CMS 編輯。
+2. [implementation_bootstrap_v1.1.md](./implementation_bootstrap_v1.1.md)：後端不存在時，從零建立 Api／Admin／Worker／AdminCli、CI、#20～#22 的開工規格。
+3. [api_v1_v1.1.md](./api_v1_v1.1.md)：HTTP Method、Path、DTO、狀態碼及錯誤碼。
+4. [schema_v1.1.sql](./schema_v1.1.sql)：資料表、FK、Check、Unique、Index、Trigger 與不可變資料規則。
+5. [line_login_v1.1.md](./line_login_v1.1.md)：LINE Login、Cookie Session、CSRF、CORS 與正式環境設定。
+6. [rank_catalog_v1.1.md](./rank_catalog_v1.1.md)：完整位階、門檻、初始能力與俸祿。
+7. [seed_rules_v1.1.sql](./seed_rules_v1.1.sql)：能力標籤、地點、位階及已確認規則的 Seed。
+8. [seed_npcs_v1.1.sql](./seed_npcs_v1.1.sql)：現有 8 位 NPC 的初始已發布內容與立繪路徑；只補缺少 Code，不覆蓋 CMS 編輯。
 
 舊版 v1.0 只供追溯，不得用來產生新的 Migration 或 OpenAPI。企劃原始文件若與 v1.1 的已確認修正衝突，以 v1.1 為準；未知規則必須維持可設定，不可自行臆測。
 
@@ -33,7 +34,7 @@ LINE Developers Console 已登錄正式 Callback；Channel 目前維持 `Develop
 
 ## 3. 建議建置順序
 
-1. 建立 Solution 分層、統一 Problem Details、UTC Clock、`Asia/Taipei` Calendar Service 與 Npgsql／EF Core。
+1. 若後端尚不存在，必須依 `implementation_bootstrap_v1.1.md` 自行建立完整 Solution、`GongWei.Api`、`GongWei.Admin`、`GongWei.Worker`、共用層、`GongWei.AdminCli` 與測試專案；不得因專案不存在而把任務標成阻塞。
 2. 以 `schema_v1.1.sql` 建立第一版 Migration；不得在 Production 直接把整份 SQL 當成每次啟動腳本重跑。
 3. 建立 LINE Login、Session、CSRF、CORS 與 RBAC；完成下方首次管理員 Bootstrap。
 4. 執行 `seed_rules_v1.1.sql`，再執行 `seed_npcs_v1.1.sql`；以整合測試驗證兩份 Seed 可重跑。
@@ -44,7 +45,7 @@ LINE Developers Console 已登錄正式 Callback；Channel 目前維持 `Develop
 
 ## 4. 全新環境 Bootstrap
 
-`seed_rules_v1.1.sql` 內部分 `game_settings` 需要 `created_by`，因此全新資料庫必須先建立第一位超級管理員。Production 不允許手動修改角色表或留下通用預設密碼。
+`seed_rules_v1.1.sql` 內部分 `game_settings` 需要 `created_by`，因此全新資料庫必須先建立第一位超級管理員。`GongWei.AdminCli` 是後端交付的一部分，必須由開發者依 `implementation_bootstrap_v1.1.md` 建立，不是外部前置專案。Production 不允許手動修改角色表或留下通用預設密碼。
 
 1. LINE Developers 將站長帳號列為 Channel Admin 或 Tester；Channel 尚在 Developing 時只有這些帳號可登入。
 2. 套用 Schema，啟動 API，站長由 LINE Login 登入一次，讓系統正常建立 `game.users`。
