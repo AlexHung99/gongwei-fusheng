@@ -44,8 +44,11 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, playerProfiles, portraits, staffMembers, type MarketItem, type NpcProfile, type PortraitOption, type RouteKey } from "./data";
+import { ApiError, logout, startLineLogin } from "./api/client";
+import { useGameApi, type CharacterStatsDto, type ChronicleDto, type InventoryDto, type NpcDto, type PlayerDto, type StaffDto } from "./api/game";
 
 type InventoryEntry = {
+  apiId?: string;
   name: string;
   quantity: number;
   purchasedAt: string;
@@ -71,9 +74,35 @@ const supportUrl = (import.meta.env.VITE_BUY_ME_A_COFFEE_URL ?? "").trim();
 const supportConfigured = /^https:\/\/buymeacoffee\.com\/[A-Za-z0-9._-]+\/?$/.test(supportUrl);
 
 const routeFromHash = (): RouteKey => {
-  const value = window.location.hash.replace("#/", "") as RouteKey;
+  const value = window.location.hash.replace("#/", "").split("?")[0] as RouteKey;
   return ["home", "map", "events", "players", "character", "market", "more", "admin"].includes(value) ? value : "home";
 };
+
+const apiMessage = (error: unknown) => error instanceof ApiError
+  ? `${error.message}（${error.code}${error.requestId ? `・${error.requestId}` : ""}）`
+  : "目前無法連線到遊戲伺服器，請稍後再試。";
+
+const mapApiPlayer = (player: PlayerDto) => ({
+  id: player.characterId, name: player.displayName, title: player.rankName || player.role,
+  image: player.portraitUrl || portraits[0].src, onlineMinutes: player.lastSeenLabel.includes("在線") ? 0 : 999,
+  onlineLabel: player.lastSeenLabel, status: player.status,
+  stats: { constitution: player.stats.vitality.value, strategy: player.stats.strategy.value, appearance: player.stats.appearance.value, fortune: player.stats.luck.value },
+  activities: [],
+});
+
+const mapApiNpc = (npc: NpcDto): NpcProfile => ({
+  id: npc.code, name: npc.displayName, title: npc.title, courtesy: npc.publicProfile?.courtesyName ?? "—",
+  image: npc.portraitUrl || "./assets/npc-redrawn/lan-ronghua-v4.webp", personality: "詳見人物故事", skilled: "—", unskilled: "—", likes: "—", dislikes: "—", history: "官方已發布人物",
+  summary: npc.summary, story: npc.storyMarkdown.split(/\n\s*\n/).map((text) => text.replace(/^#+\s*/gm, "").trim()).filter(Boolean),
+  stats: npc.publicProfile?.stats ? { constitution: npc.publicProfile.stats.vitality?.value ?? 0, strategy: npc.publicProfile.stats.strategy?.value ?? 0, fortune: npc.publicProfile.stats.luck?.value ?? 0, appearance: npc.publicProfile.stats.appearance?.value ?? 0 } : undefined,
+});
+
+const mapChronicle = (item: ChronicleDto) => ({
+  date: new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(item.happenedAt)),
+  title: item.title, detail: item.detail, source: item.entryType, period: (Date.now() - new Date(item.happenedAt).getTime() < 86400000 ? "today" : "history") as "today" | "history",
+  place: item.location?.name ?? "宮中",
+  changes: [...item.statChanges.map((change) => ({ label: ({ vitality: "體質", strategy: "心計", appearance: "容貌", luck: "福氣" } as Record<string, string>)[change.field] ?? change.field, delta: change.delta, before: change.before, after: change.after })), ...item.resourceChanges.map((change) => ({ label: change.resource === "silver" ? "銀兩" : change.resource, delta: change.delta, before: change.before, after: change.after }))],
+});
 
 const abilityLabel = (name: string, value: number) => {
   if (value <= 0) return name === "體質" ? "逝世" : "未定";
@@ -88,6 +117,8 @@ const abilityLabel = (name: string, value: number) => {
 };
 
 function App() {
+  const gameApi = useGameApi();
+  const { state: api } = gameApi;
   const [route, setRouteState] = useState<RouteKey>(routeFromHash);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -97,11 +128,32 @@ function App() {
   const [balance, setBalance] = useState(1840);
   const [inventory, setInventory] = useState<InventoryEntry[]>(initialInventory);
 
+  const liveStats = api.stats;
+  const displayPortrait: PortraitOption = api.me?.character ? {
+    id: api.me.character.id, title: api.me.character.role, name: api.me.character.displayName,
+    src: api.me.character.portraitUrl || selectedPortrait.src, note: api.me.character.rank?.name ?? api.me.character.status, source: "official",
+  } : selectedPortrait;
+  const liveBalance = api.wallets.find((wallet) => wallet.currencyCode === "silver")?.balance;
+  const displayBalance = liveBalance ?? balance;
+  const displayInventory: InventoryEntry[] = api.inventory.length ? api.inventory.map((entry) => ({ apiId: entry.id, name: entry.displayName ?? entry.name ?? entry.itemCode, quantity: entry.quantity, purchasedAt: entry.acquiredAt ? new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "medium" }).format(new Date(entry.acquiredAt)) : "由後端載入" })) : inventory;
+  const displayMarketItems: MarketItem[] = api.offers.length ? api.offers.map((offer) => ({ apiId: offer.id, name: offer.displayName ?? offer.name ?? offer.itemCode ?? "未命名道具", category: (["媚", "輔", "欺", "毒", "解", "其"].includes(offer.category) ? offer.category : "其") as MarketItem["category"], price: offer.unitPrice ?? offer.price ?? 0, effect: offer.effectSummary ?? offer.description ?? "效果依後端規則結算", risk: offer.riskLevel === "danger" ? "danger" : offer.requiresModeration ? "moderated" : undefined })) : marketItems;
+  const displayPlayers = api.players.length ? api.players.map(mapApiPlayer) : playerProfiles;
+  const displayNpcs = api.npcs.length ? api.npcs.map(mapApiNpc) : npcs;
+  const displayStaff = api.staff.length ? api.staff.map((member: StaffDto) => ({ name: member.displayName, role: member.title, duty: member.duty, online: member.lastSeenLabel })) : staffMembers;
+  const displayChronicle = api.chronicle.length ? api.chronicle.map(mapChronicle) : chronicle;
+  const displayEvents = api.events.length ? api.events.map((event, index) => ({ id: event.id, label: event.type ?? "宮中事件", title: event.title, description: event.summary ?? "請進入事件查看完整內容。", place: event.location?.name ?? "宮中", deadline: event.joinDeadline ? new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "short", timeStyle: "short" }).format(new Date(event.joinDeadline)) : event.status ?? "進行中", participants: event.participantCount ?? 0, tone: ["gold", "jade", "ink"][index % 3] })) : events;
+
   useEffect(() => {
     const onHashChange = () => setRouteState(routeFromHash());
     window.addEventListener("hashchange", onHashChange);
     if (!window.location.hash) window.location.hash = "#/home";
     return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
+    const query = window.location.hash.split("?")[1];
+    const code = query ? new URLSearchParams(query).get("code") : null;
+    if (code) setToast(`LINE 登入未完成：${code}。請重新登入。`);
   }, []);
 
   useEffect(() => {
@@ -116,31 +168,23 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const purchaseItem = (item: MarketItem) => {
-    if (item.price > balance) {
+  const purchaseItem = async (item: MarketItem) => {
+    if (!api.me) { setToast("請先使用 LINE 登入，再前往宮市購買。"); return; }
+    if (!item.apiId) { setToast("此為示範商品，後端尚未提供可購買的 Offer，未扣除銀兩。"); return; }
+    if (item.price > displayBalance) {
       setToast(`銀兩不足，無法購買「${item.name}」`);
       return;
     }
-    if (item.risk) {
-      setToast(`「${item.name}」的購買申請已送出，管理員確認前不扣銀兩或加入庫存`);
-      return;
-    }
-    setBalance((current) => current - item.price);
-    setInventory((current) => {
-      const owned = current.find((entry) => entry.name === item.name);
-      if (owned) return current.map((entry) => entry.name === item.name ? { ...entry, quantity: entry.quantity + 1, purchasedAt: "剛剛" } : entry);
-      return [{ name: item.name, quantity: 1, purchasedAt: "剛剛" }, ...current];
-    });
-    setToast(`已購買「${item.name}」，可至我的人物使用`);
+    try { await gameApi.purchase(item.apiId); setToast(`已購買「${item.name}」，正在更新銀兩與庫存。`); await gameApi.refresh(); }
+    catch (error) { setToast(apiMessage(error)); }
   };
 
-  const useInventoryItem = (item: MarketItem) => {
-    if (item.risk) {
-      setToast(`「${item.name}」的使用申請已送出，管理員確認前不扣除數量`);
-      return;
-    }
-    setInventory((current) => current.flatMap((entry) => entry.name !== item.name ? [entry] : entry.quantity > 1 ? [{ ...entry, quantity: entry.quantity - 1 }] : []));
-    setToast(`已使用「${item.name}」；效果與歷程將由後端正式結算`);
+  const useInventoryItem = async (item: MarketItem) => {
+    const entry = displayInventory.find((owned) => owned.name === item.name);
+    if (!api.me) { setToast("請先使用 LINE 登入，再使用人物道具。"); return; }
+    if (!entry?.apiId) { setToast("此為示範庫存，後端尚未提供 Entry，未扣除道具。"); return; }
+    try { await gameApi.useItem(entry.apiId); setToast(`已送出「${item.name}」使用要求，正在更新歷程。`); await gameApi.refresh(); }
+    catch (error) { setToast(apiMessage(error)); }
   };
 
   return (
@@ -157,7 +201,7 @@ function App() {
             <button key={id} className={route === id ? "active" : ""} onClick={() => navigate(id)}>
               <Icon size={19} strokeWidth={1.8} />
               <span>{label}</span>
-              {id === "events" && <em>{palaceActivities.length}</em>}
+              {id === "events" && <em>{displayEvents.length}</em>}
             </button>
           ))}
           <p className="nav-eyebrow nav-eyebrow-spaced">內廷執事</p>
@@ -169,40 +213,41 @@ function App() {
 
         <section className="sidebar-profile" aria-label="自己的帳號與角色狀態">
           <button className="sidebar-profile-main" onClick={() => navigate("character")}>
-            <img src={selectedPortrait.src} alt={`${selectedPortrait.name}人物立繪`} />
-            <span><small>自己的帳號</small><strong>{selectedPortrait.name}</strong><em>{selectedPortrait.note}・安好</em></span>
+            <img src={displayPortrait.src} alt={`${displayPortrait.name}人物立繪`} />
+            <span><small>{api.me ? api.me.user.displayName : "尚未 LINE 登入"}</small><strong>{api.me?.character?.displayName ?? "訪客"}</strong><em>{api.me?.character?.rank?.name ?? (api.me ? "尚未建立正式角色" : "登入後載入人物")}</em></span>
             <Settings size={15} />
           </button>
-          <div className="sidebar-self-stats"><span>體質<strong>570</strong><em>康健</em></span><span>心計<strong>640</strong><em>高深</em></span><span>容貌<strong>820</strong><em>絕世</em></span><span>福氣<strong>380</strong><em>如意</em></span></div>
+          <div className="sidebar-self-stats"><span>體質<strong>{liveStats?.vitality.value ?? 570}</strong><em>{liveStats?.vitality.label ?? "康健"}</em></span><span>心計<strong>{liveStats?.strategy.value ?? 640}</strong><em>{liveStats?.strategy.label ?? "高深"}</em></span><span>容貌<strong>{liveStats?.appearance.value ?? 820}</strong><em>{liveStats?.appearance.label ?? "絕世"}</em></span><span>福氣<strong>{liveStats?.luck.value ?? 380}</strong><em>{liveStats?.luck.label ?? "如意"}</em></span></div>
           <button className="sidebar-history-link" onClick={() => navigate("character")}><History size={13} />查看狀態與數值歷史</button>
         </section>
       </aside>
 
       <div className="main-column">
         <header className="topbar">
-          <div className="date-chip"><CalendarDays size={16} /><span>永熙七年・春三月初七</span></div>
+          <div className="date-chip"><CalendarDays size={16} /><span>{api.world?.displayDate ?? api.world?.currentDateLabel ?? api.world?.eraName ?? "宮廷日曆載入中"}</span></div>
           <div className="top-actions">
-            <button className="top-line-button" onClick={() => setToast("LINE Login 將由後端 OAuth 登入端點開啟")} aria-label="使用 LINE 登入"><MessageCircleMore size={17} /><span>LINE 登入</span></button>
-            <button className="top-register-button" onClick={() => setToast("註冊角色需先完成 LINE 登入；登入後會進入建角填單")} aria-label="註冊角色"><FilePenLine size={16} /><span>註冊</span></button>
+            <button className="top-line-button" onClick={() => api.me ? void logout().then(() => window.location.reload()).catch((error) => setToast(apiMessage(error))) : startLineLogin()} aria-label={api.me ? "登出" : "使用 LINE 登入"}><MessageCircleMore size={17} /><span>{api.me ? "登出" : "LINE 登入"}</span></button>
+            <button className="top-register-button" onClick={() => api.me ? navigate("character") : startLineLogin()} aria-label="註冊角色"><FilePenLine size={16} /><span>{api.me?.character ? "人物" : "註冊"}</span></button>
             <button className="top-coffee-button" onClick={() => setSupportOpen(true)} aria-label="請我們喝杯咖啡"><Coffee size={17} /><span>請喝咖啡</span></button>
             <button className="icon-button notification-button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-label="通知">
-              <Bell size={19} /><i>3</i>
+              <Bell size={19} />{(api.me?.unreadNotificationCount ?? 0) > 0 && <i>{api.me?.unreadNotificationCount}</i>}
             </button>
           </div>
         </header>
 
         {notificationsOpen && <NotificationPanel onClose={() => setNotificationsOpen(false)} />}
-        {supportOpen && <SupportModal onClose={() => setSupportOpen(false)} />}
+        {supportOpen && <SupportModal onClose={() => setSupportOpen(false)} setting={api.support} />}
 
         <main className="page-content">
-          {route === "home" && <HomeView navigate={navigate} onToast={setToast} />}
-          {route === "map" && <MapView navigate={navigate} onToast={setToast} />}
-          {route === "events" && <EventsView onToast={setToast} />}
-          {route === "players" && <PlayerDirectoryView />}
-          {route === "character" && <CharacterView portrait={selectedPortrait} balance={balance} inventory={inventory} openPicker={() => setPortraitPickerOpen(true)} navigate={navigate} onUse={useInventoryItem} />}
-          {route === "market" && <MarketView balance={balance} onPurchase={purchaseItem} />}
+          <ApiStatus phase={api.phase} unavailable={api.unavailable} onRetry={() => void gameApi.refresh()} />
+          {route === "home" && <HomeView navigate={navigate} onToast={setToast} eventItems={displayEvents} stats={liveStats} balance={displayBalance} rankName={api.me?.character?.rank?.name} />}
+          {route === "map" && <MapView navigate={navigate} onToast={setToast} npcItems={displayNpcs} staffItems={displayStaff} />}
+          {route === "events" && <EventsView onToast={setToast} activities={api.chronicle.length ? displayChronicle.map((entry, index) => ({ id: `api-${index}`, time: entry.date, place: entry.place, player: api.me?.character?.displayName ?? "我的人物", playerTitle: api.me?.character?.rank?.name ?? "", action: entry.title, detail: entry.detail, cost: entry.changes.filter((change) => change.delta < 0).map((change) => `${change.label} ${change.delta}`).join("、") || "無", results: entry.changes.filter((change) => change.delta >= 0).map((change) => `${change.label} +${change.delta}`), tone: "jade" })) : palaceActivities} players={displayPlayers} />}
+          {route === "players" && <PlayerDirectoryView players={displayPlayers} />}
+          {route === "character" && <CharacterView portrait={displayPortrait} balance={displayBalance} inventory={displayInventory} market={displayMarketItems} statsDto={liveStats} history={displayChronicle} openPicker={() => setPortraitPickerOpen(true)} navigate={navigate} onUse={useInventoryItem} />}
+          {route === "market" && <MarketView balance={displayBalance} items={displayMarketItems} onPurchase={purchaseItem} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
-          {route === "admin" && <AdminView onToast={setToast} />}
+          {route === "admin" && <AdminPortal />}
         </main>
       </div>
 
@@ -216,7 +261,8 @@ function App() {
 
       {portraitPickerOpen && (
         <PortraitPicker
-          selected={selectedPortrait.id}
+          selected={displayPortrait.id}
+          onUpload={async (file) => { const result = await gameApi.uploadPortrait(file, api.me?.character?.role ?? "consort"); await gameApi.refresh(); return result.previewUrl ?? result.url; }}
           onClose={() => setPortraitPickerOpen(false)}
           onSelect={(portrait) => {
             setSelectedPortrait(portrait);
@@ -234,7 +280,14 @@ function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: 
   return <header className="page-heading"><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></header>;
 }
 
-function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
+function ApiStatus({ phase, unavailable, onRetry }: { phase: "loading" | "guest" | "ready" | "degraded"; unavailable: string[]; onRetry: () => void }) {
+  if (phase === "ready") return <div className="api-status live"><CheckCircle2 size={14} />已連線正式遊戲資料</div>;
+  if (phase === "loading") return <div className="api-status loading"><Sparkles size={14} />正在同步正式遊戲資料…</div>;
+  if (phase === "guest") return <div className="api-status guest"><MessageCircleMore size={14} />尚未登入；目前顯示美術示範資料。<button onClick={startLineLogin}>使用 LINE 登入</button></div>;
+  return <div className="api-status degraded"><AlertCircle size={14} />部分 API 尚未提供：{unavailable.join("、")}。未載入部分顯示示範資料。<button onClick={onRetry}>重試</button></div>;
+}
+
+function HomeView({ navigate, onToast, eventItems, stats, balance, rankName }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void; eventItems: typeof events; stats: CharacterStatsDto | null; balance: number; rankName?: string }) {
   return (
     <div className="home-view">
       <section className="hero-card">
@@ -244,7 +297,7 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
           <div className="season-pill"><Sprout size={14} />春章・花信</div>
           <p className="hero-kicker">今日宮聞</p>
           <h1>奉天春祭將啟，<br />一支舊籤暗藏風波。</h1>
-          <p>太后傳旨，酉時於奉天樓行祈福禮；主線內容已由管理員發布。</p>
+          <p>太后傳旨，酉時於奉天樓行祈福禮；活動內容與結算以管理員發布為準。</p>
           <div className="hero-actions">
             <button className="primary-button" onClick={() => navigate("events")}>前往春宴 <ChevronRight size={17} /></button>
             <button className="ghost-button" onClick={() => navigate("map")}>查看宮城</button>
@@ -265,12 +318,12 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
 
         <div className="section-card status-card">
           <div className="section-title"><div><span>YOUR STANDING</span><h2>宮中近況</h2></div><button onClick={() => navigate("character")}>完整人物</button></div>
-          <div className="standing-rank"><Crown /><div><span>目前位階</span><strong>從六品・婕妤</strong></div><em>晉位 68%</em></div>
+          <div className="standing-rank"><Crown /><div><span>目前位階</span><strong>{rankName ?? "登入後載入"}</strong></div><em>威望 {stats?.prestige ?? "—"}</em></div>
           <div className="progress"><i style={{ width: "68%" }} /></div>
           <div className="resource-row">
-            <div><Star /><span>威望<strong>286</strong></span></div>
-            <div><Coins /><span>銀兩<strong>1,840</strong></span></div>
-            <div><HeartHandshake /><span>恩寵<strong>72</strong></span></div>
+            <div><Star /><span>威望<strong>{stats?.prestige ?? "—"}</strong></span></div>
+            <div><Coins /><span>銀兩<strong>{balance.toLocaleString()}</strong></span></div>
+            <div><HeartHandshake /><span>恩寵<strong>{stats?.favor ?? "—"}</strong></span></div>
           </div>
         </div>
       </section>
@@ -278,7 +331,7 @@ function HomeView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
       <section className="lower-grid">
         <div className="section-card event-preview">
           <div className="section-title"><div><span>ONGOING STORIES</span><h2>進行中的篇章</h2></div><button onClick={() => navigate("events")}>查看全部</button></div>
-          {events.slice(0, 2).map((event) => <EventRow key={event.id} event={event} onClick={() => navigate("events")} />)}
+          {eventItems.slice(0, 2).map((event) => <EventRow key={event.id} event={event} onClick={() => navigate("events")} />)}
         </div>
         <div className="section-card notice-card">
           <div className="section-title"><div><span>PALACE NOTICE</span><h2>宮務告示</h2></div></div>
@@ -294,7 +347,7 @@ function EventRow({ event, onClick }: { event: typeof events[number]; onClick: (
   return <button className="event-row" onClick={onClick}><i className={event.tone}><ScrollText /></i><span><em>{event.label}</em><strong>{event.title}</strong><small>{event.place}・{event.participants} 人參與</small></span><div><small>{event.deadline}</small><ChevronRight /></div></button>;
 }
 
-function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void }) {
+function MapView({ navigate, onToast, npcItems, staffItems }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void; npcItems: NpcProfile[]; staffItems: typeof staffMembers }) {
   const [activePlace, setActivePlace] = useState(mapPlaces[1]);
   const enterPlace = () => {
     if (activePlace.id === "npc-archive") {
@@ -352,21 +405,21 @@ function MapView({ navigate, onToast }: { navigate: (route: RouteKey) => void; o
           <button className="primary-button full" onClick={enterPlace}>{activePlace.action} <ChevronRight size={17} /></button>
         </aside>
       </div>
-      {activePlace.id === "neiwufu" && <StaffDirectory />}
-      {activePlace.id === "npc-archive" && <NpcDirectory />}
+      {activePlace.id === "neiwufu" && <StaffDirectory items={staffItems} />}
+      {activePlace.id === "npc-archive" && <NpcDirectory items={npcItems} />}
     </div>
   );
 }
 
-function EventsView({ onToast }: { onToast: (message: string) => void }) {
+function EventsView({ onToast, activities, players: playersData }: { onToast: (message: string) => void; activities: typeof palaceActivities; players: typeof playerProfiles }) {
   const [placeFilter, setPlaceFilter] = useState("全部地點");
   const [playerFilter, setPlayerFilter] = useState("全部玩家");
-  const [activeId, setActiveId] = useState(palaceActivities[0].id);
-  const places = ["全部地點", ...Array.from(new Set(palaceActivities.map((item) => item.place)))];
-  const players = ["全部玩家", ...Array.from(new Set(palaceActivities.map((item) => item.player)))];
-  const filteredActivities = palaceActivities.filter((item) => (placeFilter === "全部地點" || item.place === placeFilter) && (playerFilter === "全部玩家" || item.player === playerFilter));
+  const [activeId, setActiveId] = useState(activities[0]?.id ?? "");
+  const places = ["全部地點", ...Array.from(new Set(activities.map((item) => item.place)))];
+  const players = ["全部玩家", ...Array.from(new Set(activities.map((item) => item.player)))];
+  const filteredActivities = activities.filter((item) => (placeFilter === "全部地點" || item.place === placeFilter) && (playerFilter === "全部玩家" || item.player === playerFilter));
   const activeActivity = filteredActivities.find((item) => item.id === activeId) ?? filteredActivities[0];
-  const activePlayer = playerProfiles.find((player) => player.name === activeActivity?.player);
+  const activePlayer = playersData.find((player) => player.name === activeActivity?.player);
   const activeScene = mapPlaces.find((place) => place.name === activeActivity?.place)?.image ?? "./assets/palace-hero.webp";
 
   return (
@@ -400,18 +453,18 @@ function EventsView({ onToast }: { onToast: (message: string) => void }) {
   );
 }
 
-function CharacterView({ portrait, balance, inventory, openPicker, navigate, onUse }: { portrait: PortraitOption; balance: number; inventory: InventoryEntry[]; openPicker: () => void; navigate: (route: RouteKey) => void; onUse: (item: MarketItem) => void }) {
+function CharacterView({ portrait, balance, inventory, market, statsDto, history, openPicker, navigate, onUse }: { portrait: PortraitOption; balance: number; inventory: InventoryEntry[]; market: MarketItem[]; statsDto: CharacterStatsDto | null; history: typeof chronicle; openPicker: () => void; navigate: (route: RouteKey) => void; onUse: (item: MarketItem) => void | Promise<void> }) {
   const [historyScope, setHistoryScope] = useState<"today" | "all">("today");
   const [pendingUse, setPendingUse] = useState<MarketItem | null>(null);
   const stats = [
-    { name: "體質", value: 570, color: "#64726e", label: abilityLabel("體質", 570) },
-    { name: "容貌", value: 820, color: "#b18a49", label: abilityLabel("容貌", 820) },
-    { name: "心計", value: 640, color: "#385e5a", label: abilityLabel("心計", 640) },
-    { name: "福氣", value: 380, color: "#a4534b", label: abilityLabel("福氣", 380) },
+    { name: "體質", value: statsDto?.vitality.value ?? 570, color: "#64726e", label: statsDto?.vitality.label ?? abilityLabel("體質", 570) },
+    { name: "容貌", value: statsDto?.appearance.value ?? 820, color: "#b18a49", label: statsDto?.appearance.label ?? abilityLabel("容貌", 820) },
+    { name: "心計", value: statsDto?.strategy.value ?? 640, color: "#385e5a", label: statsDto?.strategy.label ?? abilityLabel("心計", 640) },
+    { name: "福氣", value: statsDto?.luck.value ?? 380, color: "#a4534b", label: statsDto?.luck.label ?? abilityLabel("福氣", 380) },
   ];
-  const visibleChronicle = historyScope === "today" ? chronicle.filter((item) => item.period === "today") : chronicle;
+  const visibleChronicle = historyScope === "today" ? history.filter((item) => item.period === "today") : history;
   const ownedItems = inventory.flatMap((entry) => {
-    const item = marketItems.find((marketItem) => marketItem.name === entry.name);
+    const item = market.find((marketItem) => marketItem.name === entry.name);
     return item ? [{ ...entry, item }] : [];
   });
   const totalItems = inventory.reduce((sum, entry) => sum + entry.quantity, 0);
@@ -432,7 +485,7 @@ function CharacterView({ portrait, balance, inventory, openPicker, navigate, onU
           <div className="profile-tags"><span>關雎宮</span><span>清雅</span><span>沈氏</span></div>
           <dl><div><dt>入宮</dt><dd>永熙七年・春</dd></div><div><dt>生辰</dt><dd>八月初九</dd></div><div><dt>當前狀態</dt><dd className="safe">安好</dd></div></dl>
         </div>
-        <div className="profile-resources"><div><Star /><span>威望</span><strong>286</strong><small>距晉位尚需 134</small></div><div><Coins /><span>銀兩</span><strong>{balance.toLocaleString()}</strong><small>宮市購買後即時更新</small></div><div><HeartHandshake /><span>恩寵</span><strong>72</strong><small>近七日 +8</small></div></div>
+          <div className="profile-resources"><div><Star /><span>威望</span><strong>{statsDto?.prestige ?? "—"}</strong><small>由後端即時載入</small></div><div><Coins /><span>銀兩</span><strong>{balance.toLocaleString()}</strong><small>宮市購買後即時更新</small></div><div><HeartHandshake /><span>恩寵</span><strong>{statsDto?.favor ?? "—"}</strong><small>由後端即時載入</small></div></div>
       </section>
 
       <div className="character-grid">
@@ -459,8 +512,8 @@ function CharacterView({ portrait, balance, inventory, openPicker, navigate, onU
   );
 }
 
-function NpcDirectory() {
-  const [selectedNpc, setSelectedNpc] = useState<NpcProfile>(npcs[0]);
+function NpcDirectory({ items }: { items: NpcProfile[] }) {
+  const [selectedNpc, setSelectedNpc] = useState<NpcProfile>(items[0]);
   const npcStats = selectedNpc.stats ? [
     ["體質", selectedNpc.stats.constitution],
     ["心計", selectedNpc.stats.strategy],
@@ -469,10 +522,10 @@ function NpcDirectory() {
   ] : [];
   return (
     <section className="npc-archive" id="npc-directory">
-      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中人物名冊</h2><p>從宮城輿圖查閱官方 NPC 的人物設定、能力、經歷與個人故事。</p></div><small>共 {npcs.length} 人</small></div>
+      <div className="section-title npc-title"><div><span>OFFICIAL NPC ARCHIVE</span><h2>宮中人物名冊</h2><p>從宮城輿圖查閱官方 NPC 的人物設定、能力、經歷與個人故事。</p></div><small>共 {items.length} 人</small></div>
       <div className="npc-layout">
         <div className="npc-grid" aria-label="NPC 人物列表">
-          {npcs.map((npc) => (
+          {items.map((npc) => (
             <button key={npc.id} className={selectedNpc.id === npc.id ? "active" : ""} onClick={() => setSelectedNpc(npc)}>
               <img src={npc.image} alt={`${npc.name}・${npc.title}`} loading="lazy" />
               <span><small>{npc.title}</small><strong>{npc.name}</strong><em>{npc.personality}</em></span>
@@ -502,17 +555,17 @@ function NpcDirectory() {
   );
 }
 
-function StaffDirectory() {
-  return <section className="staff-directory" id="staff-directory"><div className="section-title npc-title"><div><span>IMPERIAL HOUSEHOLD STAFF</span><h2>內務府管理名單</h2><p>玩家可查看執事分工與最近上線時間；管理後台權限不會因此公開。</p></div><small>共 {staffMembers.length} 人</small></div><div className="staff-grid">{staffMembers.map((member, index) => <article className="section-card" key={member.name}><i>{String(index + 1).padStart(2, "0")}</i><span><small>{member.role}</small><strong>{member.name}</strong><p>{member.duty}</p></span><em className={member.online === "在線" ? "online" : ""}>{member.online}</em></article>)}</div></section>;
+function StaffDirectory({ items }: { items: typeof staffMembers }) {
+  return <section className="staff-directory" id="staff-directory"><div className="section-title npc-title"><div><span>IMPERIAL HOUSEHOLD STAFF</span><h2>內務府管理名單</h2><p>玩家可查看執事分工與最近上線時間；管理後台權限不會因此公開。</p></div><small>共 {items.length} 人</small></div><div className="staff-grid">{items.map((member, index) => <article className="section-card" key={member.name}><i>{String(index + 1).padStart(2, "0")}</i><span><small>{member.role}</small><strong>{member.name}</strong><p>{member.duty}</p></span><em className={member.online === "在線" ? "online" : ""}>{member.online}</em></article>)}</div></section>;
 }
 
-function PlayerDirectoryView() {
+function PlayerDirectoryView({ players }: { players: typeof playerProfiles }) {
   const pageSize = 5;
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedPlayer, setSelectedPlayer] = useState(playerProfiles[0]);
+  const [selectedPlayer, setSelectedPlayer] = useState(players[0]);
   const [scope, setScope] = useState<"today" | "all">("today");
-  const sortedPlayers = [...playerProfiles].sort((a, b) => a.onlineMinutes - b.onlineMinutes).filter((player) => `${player.name}${player.title}${player.status}`.includes(query.trim()));
+  const sortedPlayers = [...players].sort((a, b) => a.onlineMinutes - b.onlineMinutes).filter((player) => `${player.name}${player.title}${player.status}`.includes(query.trim()));
   const pageCount = Math.max(1, Math.ceil(sortedPlayers.length / pageSize));
   const visiblePlayers = sortedPlayers.slice((page - 1) * pageSize, page * pageSize);
   const playerActivities = scope === "today" ? selectedPlayer.activities.filter((item) => item.time.startsWith("今日")) : selectedPlayer.activities;
@@ -530,11 +583,11 @@ function PlayerDirectoryView() {
   return <div><PageHeading eyebrow="PLAYER DIRECTORY" title="玩家名冊" description="依最近上線時間排序；可查看玩家當前公開狀態、今日歷程與歷史歷程。" /><div className="player-directory-layout"><aside className="player-list-panel section-card"><div className="player-search"><Search size={16} /><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="搜尋姓名、位階或狀態" /></div><div className="player-sort-note"><Users size={15} />最近上線優先・共 {sortedPlayers.length} 人</div><div className="player-list">{visiblePlayers.map((player) => <button key={player.id} className={selectedPlayer.id === player.id ? "active" : ""} onClick={() => setSelectedPlayer(player)}><img src={player.image} alt="" /><span><small>{player.title}</small><strong>{player.name}</strong><em>{player.status}</em></span><b className={player.onlineMinutes === 0 ? "online" : ""}>{player.onlineLabel}</b></button>)}</div><div className="pagination"><button disabled={page === 1} onClick={() => changePage(page - 1)}>上一頁</button><span>{page} / {pageCount}</span><button disabled={page === pageCount} onClick={() => changePage(page + 1)}>下一頁</button></div></aside><section className="player-public-profile section-card"><header><img src={selectedPlayer.image} alt={`${selectedPlayer.name}人物圖片`} /><span><small>{selectedPlayer.id}</small><h2>{selectedPlayer.name}</h2><p>{selectedPlayer.title}・{selectedPlayer.status}</p></span><em>{selectedPlayer.onlineLabel}</em></header><div className="public-stat-grid">{statEntries.map(([name, value]) => <div key={name}><small>{name}</small><strong>{value}</strong><em>{abilityLabel(name, value)}</em></div>)}</div><div className="public-history-head"><div><span>PUBLIC ACTIVITY</span><h3>公開遊玩歷程</h3></div><div className="history-scope"><button className={scope === "today" ? "active" : ""} onClick={() => setScope("today")}>今日</button><button className={scope === "all" ? "active" : ""} onClick={() => setScope("all")}>歷史</button></div></div><div className="public-activity-list">{playerActivities.map((activity) => <article key={activity.id}><i><Landmark size={15} /></i><span><small>{activity.time}・{activity.place}</small><strong>{activity.action}</strong><p>{activity.detail}</p><em>{activity.cost}｜{activity.results.join("、")}</em></span></article>)}{playerActivities.length === 0 && <p className="empty-state">目前沒有可公開的{scope === "today" ? "今日" : "歷史"}歷程。</p>}</div></section></div></div>;
 }
 
-function MarketView({ balance, onPurchase }: { balance: number; onPurchase: (item: MarketItem) => void }) {
+function MarketView({ balance, items, onPurchase }: { balance: number; items: MarketItem[]; onPurchase: (item: MarketItem) => void | Promise<void> }) {
   const categories = ["全部", "媚", "輔", "欺", "毒", "解", "其"] as const;
   const [category, setCategory] = useState<(typeof categories)[number]>("全部");
   const [query, setQuery] = useState("");
-  const visibleItems = marketItems.filter((item) => (category === "全部" || item.category === category) && `${item.name}${item.effect}`.includes(query.trim()));
+  const visibleItems = items.filter((item) => (category === "全部" || item.category === category) && `${item.name}${item.effect}`.includes(query.trim()));
   return <div><PageHeading eyebrow="PALACE MARKET" title="宮市" description="依《遊戲規則／宮市》呈現六類道具；使用自己的俸祿／銀兩購買，購得後可在我的人物查看與使用。" /><section className="market-hero section-card"><img src="./assets/map-v2/place-market-v1.webp" alt="宮市內部場景" /><div><span>AVAILABLE BALANCE</span><h2>目前俸祿／銀兩</h2><strong><Coins size={21} />{balance.toLocaleString()}</strong><p>購買與使用會分別留下永久歷程；被下毒後依原規則有一小時可購買解藥。</p></div></section><div className="market-toolbar section-card"><div className="market-categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div><label><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋道具或效果" /></label></div><div className="market-grid">{visibleItems.map((item) => { const affordable = item.price <= balance; return <article className={`market-item section-card ${item.risk ?? ""}`} key={`${item.category}-${item.name}`}><header><span>{item.category}</span>{item.risk === "danger" ? <em>高風險・需裁決</em> : item.risk === "moderated" ? <em>需管理員確認</em> : <em>一般道具</em>}</header><h3>{item.name}</h3><p>{item.effect}</p><footer><strong><Coins size={15} />{item.price.toLocaleString()}</strong><button disabled={!affordable} onClick={() => onPurchase(item)}>{affordable ? item.risk ? "申請購買" : "購買" : "俸祿不足"}</button></footer></article>; })}</div></div>;
 }
 
@@ -544,7 +597,11 @@ function MoreView({ navigate, onToast }: { navigate: (route: RouteKey) => void; 
     { icon: ScrollText, title: "數值紀錄", text: "事件造成的能力、資源與狀態異動", badge: "" },
     { icon: BookOpen, title: "玩法規則", text: "宮規、身份與社群互動原則", badge: "" },
   ];
-  return <div><PageHeading eyebrow="PALACE SERVICES" title="宮務與藏冊" description="查看皇嗣、數值紀錄與最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : onToast(`${title}模組已建立，待後端 API 串接`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>玩家可在宮城的內務府查看管理名單；正式後台仍部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("map")}>查看管理名單</button></section></div>;
+  return <div><PageHeading eyebrow="PALACE SERVICES" title="更多功能" description="查看皇嗣、數值紀錄與最新宮規。NPC 資訊請由宮城輿圖進入。" /><div className="service-grid">{items.map(({ icon: Icon, title, text, badge }) => <button className="service-card section-card" key={title} onClick={() => title === "數值紀錄" ? navigate("character") : onToast(`${title}將依正式 API 狀態開放`) }><i><Icon /></i><span><strong>{title}</strong><small>{text}</small></span>{badge && <em>{badge}</em>}<ChevronRight /></button>)}</div><section className="admin-entry"><div><ShieldCheck /><span><strong>內廷管理人員</strong><small>玩家可在宮城的內務府查看管理名單；正式後台仍部署於 ASP.NET Core／IIS</small></span></div><button onClick={() => navigate("map")}>查看管理名單</button></section></div>;
+}
+
+function AdminPortal() {
+  return <div><PageHeading eyebrow="ADMIN PORTAL" title="內廷管理院" description="管理功能由獨立 ASP.NET Core 後台提供，玩家前台不會載入任何管理資料。" /><section className="admin-entry"><div><ShieldCheck /><span><strong>前往正式管理後台</strong><small>系統會再次檢查管理員 Session 與角色權限。</small></span></div><a className="primary-button" href="https://gongwei-admin.miglow.vip/" target="_blank" rel="noopener noreferrer">開啟後台</a></section></div>;
 }
 
 function AdminView({ onToast }: { onToast: (message: string) => void }) {
@@ -636,15 +693,17 @@ function AuditLogPanel({ onToast }: { onToast: (message: string) => void }) {
   return <section className="section-card admin-data-panel audit-panel"><header><div><span>AUDIT LOG</span><h2>永久稽核紀錄</h2><p>顯示操作者、理由與前後值；本頁唯讀，紀錄不可修改或刪除。</p></div><button onClick={() => onToast("已匯出目前篩選結果的稽核報表")}>匯出篩選結果</button></header><div className="audit-toolbar"><input placeholder="搜尋操作者、目標或 Request ID" /><select defaultValue="all"><option value="all">全部動作</option><option>銀兩調整</option><option>道具發放</option><option>故事發布</option></select><input type="date" aria-label="開始日期" /></div><div className="audit-table"><div className="audit-row audit-head"><span>時間／操作者</span><span>動作／目標</span><span>前後值</span><span>調整理由</span><span>Request</span></div>{rows.map((row) => <button className="audit-row" key={row.request} onClick={() => onToast(`已開啟 ${row.request} 的完整 Before / After 與來源資訊`)}><span><strong>{row.time}</strong><small>{row.actor}</small></span><span><strong>{row.action}</strong><small>{row.target}</small></span><span>{row.change}</span><span>{row.reason}</span><span><code>{row.request}</code><ChevronRight size={14} /></span></button>)}</div></section>;
 }
 
-function SupportModal({ onClose }: { onClose: () => void }) {
-  return <div className="modal-backdrop support-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-title"><button className="support-close" onClick={onClose} aria-label="關閉贊助視窗"><X size={19} /></button><div className="coffee-mark"><Coffee size={32} /></div><span className="support-eyebrow">BUY ME A COFFEE</span><h2 id="support-title">請我們喝杯咖啡</h2><p>如果你喜歡這個宮廷世界，可以自願支持網站的伺服器、美術與日常維護。</p><div className="support-neutral"><ShieldCheck size={18} /><span><strong>贊助與遊戲完全無關</strong><small>不會獲得銀兩、道具、能力、位階、抽選優勢或審核優待。</small></span></div>{supportConfigured ? <a href={supportUrl} target="_blank" rel="noopener noreferrer">前往 Buy Me a Coffee <ChevronRight size={17} /></a> : <button className="support-disabled" disabled>贊助頁準備中</button>}<button className="support-later" onClick={onClose}>稍後再說</button></section></div>;
+function SupportModal({ onClose, setting }: { onClose: () => void; setting: { enabled: boolean; configured: boolean; url: string | null; label: string } | null }) {
+  const configured = Boolean(setting?.enabled && setting.configured && setting.url) || supportConfigured;
+  const url = setting?.url ?? supportUrl;
+  return <div className="modal-backdrop support-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-title"><button className="support-close" onClick={onClose} aria-label="關閉贊助視窗"><X size={19} /></button><div className="coffee-mark"><Coffee size={32} /></div><span className="support-eyebrow">BUY ME A COFFEE</span><h2 id="support-title">{setting?.label || "請我們喝杯咖啡"}</h2><p>如果你喜歡這個宮廷世界，可以自願支持網站的伺服器、美術與日常維護。</p><div className="support-neutral"><ShieldCheck size={18} /><span><strong>贊助與遊戲完全無關</strong><small>不會獲得銀兩、道具、能力、位階、抽選優勢或審核優待。</small></span></div>{configured ? <a href={url} target="_blank" rel="noopener noreferrer">前往 Buy Me a Coffee <ChevronRight size={17} /></a> : <button className="support-disabled" disabled>贊助頁準備中</button>}<button className="support-later" onClick={onClose}>稍後再說</button></section></div>;
 }
 
 function NotificationPanel({ onClose }: { onClose: () => void }) {
   return <aside className="notification-panel"><header><div><span>NOTIFICATIONS</span><h2>宮中傳報</h2></div><button onClick={onClose} aria-label="關閉通知"><X /></button></header><div className="notification-item unread"><i><ScrollText /></i><span><strong>上巳春宴即將開始</strong><p>請於酉時前選妥服儀並進入事件房。</p><small>12 分鐘前</small></span></div><div className="notification-item unread"><i><Coins /></i><span><strong>本月俸銀已入帳</strong><p>獲得銀兩 420，可至帳本查看。</p><small>1 小時前</small></span></div><div className="notification-item unread"><i><History /></i><span><strong>今日歷程已更新</strong><p>太醫院問診與數值前後值已寫入人物歷程。</p><small>昨日</small></span></div><button className="all-notifications">查看所有傳報</button></aside>;
 }
 
-function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onClose: () => void; onSelect: (portrait: PortraitOption) => void }) {
+function PortraitPicker({ selected, onClose, onSelect, onUpload }: { selected: string; onClose: () => void; onSelect: (portrait: PortraitOption) => void; onUpload: (file: File) => Promise<string | undefined> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<"official" | "upload">("official");
   const [previewUrl, setPreviewUrl] = useState("");
@@ -652,6 +711,8 @@ function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onC
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState(1);
   const [positionY, setPositionY] = useState(35);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const acceptFile = (file?: File) => {
     setError("");
@@ -660,6 +721,7 @@ function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onC
       setError("只接受 JPEG、PNG 或 WebP 圖片。");
       return;
     }
+    setUploadFile(file);
     if (file.size > 8 * 1024 * 1024) {
       setError("圖片不可超過 8 MB。");
       return;
@@ -686,20 +748,29 @@ function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onC
     reader.readAsDataURL(file);
   };
 
-  const submitUpload = () => {
+  const submitUpload = async () => {
     if (!previewUrl) {
       setError("請先選擇一張人物圖片。");
       return;
     }
-    onSelect({
+    if (!uploadFile) return;
+    setSubmitting(true);
+    try {
+      const serverUrl = await onUpload(uploadFile);
+      onSelect({
       id: `upload-${Date.now()}`,
       title: "自訂人物",
       name: "沈知微",
-      src: previewUrl,
+      src: serverUrl ?? previewUrl,
       note: "圖片審核中",
       source: "upload",
       moderationStatus: "pending",
-    });
+      });
+    } catch (uploadError) {
+      setError(apiMessage(uploadError));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -736,7 +807,7 @@ function PortraitPicker({ selected, onClose, onSelect }: { selected: string; onC
             )}
             {error && <p className="upload-error"><AlertCircle size={15} />{error}</p>}
             <div className="upload-rules"><ImageIcon size={18} /><p><strong>上傳規範</strong><span>建議直式半身或全身圖；請勿含真人照片、侵權素材、裸露、仇恨或聯絡資訊。系統會移除 EXIF，審核通過前顯示「審核中」。</span></p></div>
-            <div className="upload-submit"><button className="ghost-button" onClick={onClose}>取消</button><button className="primary-button" onClick={submitUpload} disabled={!previewUrl}>送出審核 <ChevronRight size={16} /></button></div>
+            <div className="upload-submit"><button className="ghost-button" onClick={onClose}>取消</button><button className="primary-button" onClick={() => void submitUpload()} disabled={!previewUrl || submitting}>{submitting ? "上傳中…" : "送出審核"} <ChevronRight size={16} /></button></div>
           </div>
         )}
       </section>

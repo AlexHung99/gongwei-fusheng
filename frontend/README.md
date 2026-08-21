@@ -1,6 +1,6 @@
 # 宮闈浮生 Web 前端
 
-依據 `前端規格書_v1.0.md` 製作的 GitHub Pages 靜態前端 MVP。
+依據 `前端規格書_v1.0.md` 製作的 GitHub Pages 前端，正式站位於 `https://miglow.vip/gongwei/`。
 
 ## 本機啟動
 
@@ -19,13 +19,15 @@ pnpm build
 
 - 今日首頁、行動與宮務通知。
 - 互動式宮城地圖。
-- 非同步事件房與投稿示範。
+- LINE Login、Cookie Session、CSRF 與登出流程。
+- 正式人物、能力、銀兩、歷程、玩家名冊、NPC、事件與宮廷日曆讀取。
+- 宮市購買、庫存使用與人物立繪上傳。
 - 人物卷宗、能力、生涯與官方立繪切換。
-- 宮市／庫存／關係／皇嗣等模組入口。
-- 角色審核與營運管理院示範。
+- 宮市／庫存與皇嗣等模組入口。
+- 獨立 ASP.NET Core 管理後台入口。
 - 手機底部導覽與桌面側邊導覽。
 
-目前使用 Mock Data 展示互動。`src/api/client.ts` 已保留正式 API Client；後端完成後，把 `.env.example` 複製為 `.env` 並設定 `VITE_API_BASE_URL`，再逐模組替換 Mock Data。
+`src/api/client.ts` 預設連線至 `https://gongwei-api.miglow.vip/api/v1`。讀取端點尚未部署或訪客未登入時，介面會明確標示並使用美術示範資料；所有寫入操作只以正式 API 回應為成功依據，不會在前端偽造扣款、庫存或數值結果。
 
 ## GitHub Pages
 

@@ -79,6 +79,7 @@ export type PlayerProfile = {
 };
 
 export type MarketItem = {
+  apiId?: string;
   name: string;
   category: "媚" | "輔" | "欺" | "毒" | "解" | "其";
   price: number;
@@ -89,9 +90,9 @@ export type MarketItem = {
 export const events = [
   {
     id: "spring-banquet",
-    label: "主線事件",
+    label: "宮中事件",
     title: "奉天祈福",
-    description: "奉天樓將行春祭，太后命六宮依序祈福；主線內容由管理員發布後開放參與。",
+    description: "奉天樓將行春祭，太后命六宮依序祈福；活動內容由管理員發布後開放參與。",
     place: "奉天樓",
     deadline: "今夜 22:00",
     participants: 24,
