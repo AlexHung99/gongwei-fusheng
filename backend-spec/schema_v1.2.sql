@@ -577,8 +577,8 @@ CREATE TABLE game.location_activity_definitions (
     code                    varchar(80) NOT NULL UNIQUE,
     display_name            varchar(100) NOT NULL,
     attendant_label         varchar(40) NOT NULL,
-    interaction_mode        varchar(20) NOT NULL
-                            CHECK (interaction_mode IN ('select', 'random_draw')),
+    interaction_mode        varchar(20) NOT NULL DEFAULT 'player_choice_draw'
+                            CHECK (interaction_mode = 'player_choice_draw'),
     intro_markdown          text NOT NULL DEFAULT '',
     minimum_approved_words  integer NOT NULL DEFAULT 0 CHECK (minimum_approved_words >= 0),
     reward_preview          varchar(1000) NOT NULL DEFAULT '',
@@ -608,9 +608,8 @@ CREATE TABLE game.location_activity_options (
     activity_id         uuid NOT NULL REFERENCES game.location_activity_definitions(id) ON DELETE RESTRICT,
     code                varchar(80) NOT NULL,
     display_name        varchar(100) NOT NULL,
-    public_reward_text  varchar(500) NOT NULL,
+    result_reveal_text  varchar(500) NOT NULL,
     reward_payload      jsonb NOT NULL CHECK (jsonb_typeof(reward_payload) = 'object'),
-    draw_weight         numeric(12,4) NOT NULL DEFAULT 1 CHECK (draw_weight > 0),
     is_enabled          boolean NOT NULL DEFAULT true,
     sort_order          integer NOT NULL DEFAULT 0,
     created_by          uuid NOT NULL REFERENCES game.users(id) ON DELETE RESTRICT,
@@ -843,8 +842,8 @@ CREATE TABLE game.location_activity_attempts (
     activity_id             uuid NOT NULL REFERENCES game.location_activity_definitions(id) ON DELETE RESTRICT,
     option_id               uuid NOT NULL,
     source_submission_id    uuid REFERENCES game.external_play_submissions(id) ON DELETE RESTRICT,
-    interaction_mode        varchar(20) NOT NULL
-                            CHECK (interaction_mode IN ('select', 'random_draw')),
+    interaction_mode        varchar(20) NOT NULL DEFAULT 'player_choice_draw'
+                            CHECK (interaction_mode = 'player_choice_draw'),
     reward_snapshot         jsonb NOT NULL CHECK (jsonb_typeof(reward_snapshot) = 'object'),
     public_result_text      varchar(1000) NOT NULL,
     rules_version           varchar(40) NOT NULL,
@@ -854,8 +853,7 @@ CREATE TABLE game.location_activity_attempts (
     FOREIGN KEY (activity_id, option_id)
         REFERENCES game.location_activity_options(activity_id, id) ON DELETE RESTRICT,
     UNIQUE (character_id, idempotency_key),
-    CHECK (reward_snapshot ? 'effects' AND jsonb_typeof(reward_snapshot->'effects') = 'array'),
-    CHECK (interaction_mode <> 'random_draw' OR source_submission_id IS NOT NULL)
+    CHECK (reward_snapshot ? 'effects' AND jsonb_typeof(reward_snapshot->'effects') = 'array')
 );
 
 CREATE INDEX ix_location_activity_attempts_character_time
@@ -1297,7 +1295,7 @@ COMMENT ON TABLE game.event_post_revisions IS 'Append-only event text history re
 COMMENT ON TABLE game.deaths IS 'Permanent character death record; visible through admin history only where linkage is private.';
 COMMENT ON TABLE game.npc_revisions IS 'Append-only NPC content revision history retained permanently.';
 COMMENT ON TABLE game.character_chronicle_entries IS 'Append-only unified player activity history retained permanently.';
-COMMENT ON TABLE game.location_activity_attempts IS 'Append-only scene selection/draw settlements retained permanently.';
+COMMENT ON TABLE game.location_activity_attempts IS 'Append-only scene draw settlements retained permanently.';
 
 CREATE TRIGGER tr_event_posts_no_delete
     BEFORE DELETE ON game.event_posts

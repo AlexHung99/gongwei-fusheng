@@ -570,9 +570,9 @@ function SceneActivityModal({ placeId, placeImage, onClose, onToast }: { placeId
     setOptionId("");
   };
   const selected = activity.options.find((item) => item.id === optionId);
-  const confirm = () => {
+  const drawSelected = () => {
     if (!selected) return;
-    onToast(`已選擇${activity.attendantLabel}「${selected.name}」；後端結算 API 上線後才會正式增加${selected.reward.replace(/\s/g, "")}。`);
+    onToast(`已指定「${selected.name}」籤；後端抽籤 API 上線後，才會揭示並寫入實際效果。`);
     onClose();
   };
 
@@ -581,19 +581,19 @@ function SceneActivityModal({ placeId, placeImage, onClose, onToast }: { placeId
       <button className="scene-activity-close" onClick={onClose} aria-label="關閉場景"><X size={19} /></button>
       <header className="scene-activity-hero">
         <img src={placeImage} alt="" />
-        <div><span>{activity.mode === "draw" ? "FORTUNE DRAW" : "PALACE APPOINTMENT"}</span><h2 id="scene-activity-title">{activity.name}</h2><p>{activity.mode === "draw" ? "先通過自戲審核，再由系統隨機抽取結果。" : `請選擇一位${activity.attendantLabel}。`}</p></div>
+        <div><span>CHOOSE A FORTUNE</span><h2 id="scene-activity-title">{activity.name}</h2><p>{activity.requirement ? "先通過自戲審核，再指定一支籤；效果於結算後揭示。" : `請指定一支${activity.attendantLabel}籤；抽籤前不公開對應效果。`}</p></div>
       </header>
       <div className="scene-activity-body">
         {activities.length > 1 && <div className="scene-pool-tabs" aria-label="選擇抽籤地點">{activities.map((item) => <button key={item.id} className={item.id === activity.id ? "active" : ""} onClick={() => selectActivity(item)}><span>{item.name}</span><small>{item.requirement}</small></button>)}</div>}
         <div className="scene-entry-copy"><Sparkles size={20} /><p>{activity.intro.split("\n").map((line, index) => <span key={`${line}-${index}`}>{line || <br />}</span>)}</p></div>
         {(activity.requirement || activity.rewardPreview) && <div className="scene-rules"><div><small>入場條件</small><strong>{activity.requirement}</strong></div><div><small>獎勵範圍</small><strong>{activity.rewardPreview}</strong></div></div>}
-        <div className="scene-options-heading"><div><span>{activity.mode === "draw" ? "POSSIBLE RESULTS" : "AVAILABLE ATTENDANTS"}</span><h3>{activity.mode === "draw" ? "可能抽得的籤文" : `選擇${activity.attendantLabel}`}</h3></div><em>{activity.options.length} 位</em></div>
-        <div className={`scene-option-grid ${activity.mode}`}>
-          {activity.options.map((item, index) => activity.mode === "select" ? <button key={item.id} className={optionId === item.id ? "selected" : ""} onClick={() => setOptionId(item.id)}><i>{String(index + 1).padStart(2, "0")}</i><span><strong>{item.name}</strong><small>{activity.attendantLabel}</small></span><em>{item.reward}</em>{optionId === item.id && <CheckCircle2 size={17} />}</button> : <article key={item.id}><i>{String(index + 1).padStart(2, "0")}</i><span><strong>{item.name}</strong><small>{activity.attendantLabel}</small></span><em>{item.reward}</em></article>)}
+        <div className="scene-options-heading"><div><span>AVAILABLE FORTUNES</span><h3>指定一支{activity.attendantLabel}籤</h3></div><em>{activity.options.length} 支</em></div>
+        <div className="scene-option-grid choose-draw">
+          {activity.options.map((item, index) => <button key={item.id} className={optionId === item.id ? "selected" : ""} onClick={() => setOptionId(item.id)}><i>{String(index + 1).padStart(2, "0")}</i><span><strong>{item.name}</strong><small>{activity.attendantLabel}籤</small></span><em>效果保密</em>{optionId === item.id && <CheckCircle2 size={17} />}</button>)}
         </div>
         <footer className="scene-activity-actions">
-          <span><ShieldCheck size={16} />正式結果由後端同一交易寫入數值、歷程與 Audit。</span>
-          {activity.mode === "select" ? <button className="primary-button" disabled={!selected} onClick={confirm}>{selected ? `確認選擇・${selected.name}` : `請先選擇${activity.attendantLabel}`} <ChevronRight size={16} /></button> : <button className="primary-button" disabled>通過自戲審核後抽籤</button>}
+          <span><ShieldCheck size={16} />籤的能力與數值不會送到前端；正式結果由後端結算並寫入歷程。</span>
+          <button className="primary-button" disabled={!selected} onClick={drawSelected}>{selected ? `抽取此籤・${selected.name}` : `請先指定${activity.attendantLabel}籤`} <ChevronRight size={16} /></button>
         </footer>
       </div>
     </section>

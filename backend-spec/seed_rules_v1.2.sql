@@ -278,8 +278,8 @@ END;
 $$;
 
 -- Scene activities v1.2. Seed only missing codes so later Admin CMS edits are never
--- overwritten by a deployment. All initial random-draw options have equal weight;
--- administrators may change weights through the audited Admin API.
+-- overwritten by a deployment. Players choose a named fortune; the associated
+-- reward remains server-side and administrators edit it through the audited API.
 WITH seed_actor AS (
     SELECT u.id
     FROM game.users u
@@ -290,12 +290,12 @@ WITH seed_actor AS (
 ), activity_seed(location_code, code, display_name, attendant_label, interaction_mode,
                  intro_markdown, minimum_approved_words, reward_preview, sort_order) AS (
     VALUES
-    ('taiyi','taiyi-doctors','太醫院','大夫','select','太醫院諸位大夫今日當值，請小主選擇一位請平安脈。',0,'依所選大夫增加體質。',10),
-    ('yueshu','yueshu-teachers','閱書院','先生','select','閱書院今日開講，請小主選擇一位先生授業。',0,'依所選先生增加心計。',20),
-    ('fengtian','fengtian-immortals','奉天樓','仙者','select','奉天樓香煙繚繞，請小主選擇一位仙者祈福。',0,'依所選仙者增加福氣。',30),
-    ('guanxian','taiye-draw','太液池','宮女','random_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',100,'有機會獲得優惠券，或威望增加 50～100。',40),
-    ('guanxian','yuhua-draw','御花園','籤使','random_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',300,'有機會獲得體質／容貌增加 1～5 點，或威望增加 100～300。',50),
-    ('guanxian','shanglin-draw','上林苑','籤使','random_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',500,'有機會獲得體質／容貌／心計／福氣增加 1～8 點，或威望增加 150～450。',60)
+    ('taiyi','taiyi-doctors','太醫院','大夫','player_choice_draw','太醫院諸位大夫今日當值，請小主指定一支大夫籤；效果將在抽籤完成後揭示。',0,'',10),
+    ('yueshu','yueshu-teachers','閱書院','先生','player_choice_draw','閱書院今日開講，請小主指定一支先生籤；效果將在抽籤完成後揭示。',0,'',20),
+    ('fengtian','fengtian-immortals','奉天樓','仙者','player_choice_draw','奉天樓香煙繚繞，請小主指定一支仙者籤；祝福能力與數值將在抽籤完成後揭示。',0,'',30),
+    ('guanxian','taiye-draw','太液池','宮女','player_choice_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',100,'有機會獲得優惠券，或威望增加 50～100。',40),
+    ('guanxian','yuhua-draw','御花園','籤使','player_choice_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',300,'有機會獲得體質／容貌增加 1～5 點，或威望增加 100～300。',50),
+    ('guanxian','shanglin-draw','上林苑','籤使','player_choice_draw','恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。',500,'有機會獲得體質／容貌／心計／福氣增加 1～8 點，或威望增加 150～450。',60)
 )
 INSERT INTO game.location_activity_definitions
     (location_id, code, display_name, attendant_label, interaction_mode, intro_markdown,
@@ -370,10 +370,10 @@ WITH option_seed(activity_code, code, display_name, reward_text, reward_payload,
     ('shanglin-draw','mujin','穆瑾','威望 +300、容貌 +5 點、福氣 +5 點','{"effects":[{"type":"stat","code":"prestige","delta":300},{"type":"stat","code":"appearance","delta":5},{"type":"stat","code":"luck","delta":5}]}'::jsonb,50)
 )
 INSERT INTO game.location_activity_options
-    (activity_id, code, display_name, public_reward_text, reward_payload,
-     draw_weight, is_enabled, sort_order, created_by)
+    (activity_id, code, display_name, result_reveal_text, reward_payload,
+     is_enabled, sort_order, created_by)
 SELECT a.id, s.code, s.display_name, s.reward_text, s.reward_payload,
-       1.0, true, s.sort_order, actor.id
+       true, s.sort_order, actor.id
 FROM option_seed s
 JOIN game.location_activity_definitions a ON a.code=s.activity_code
 CROSS JOIN LATERAL (

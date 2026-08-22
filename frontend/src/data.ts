@@ -29,7 +29,6 @@ export type MapPlace = {
 export type SceneActivityOption = {
   id: string;
   name: string;
-  reward: string;
 };
 
 export type SceneActivity = {
@@ -37,7 +36,7 @@ export type SceneActivity = {
   placeId: string;
   name: string;
   attendantLabel: string;
-  mode: "select" | "draw";
+  mode: "choose_draw";
   intro: string;
   requirement?: string;
   rewardPreview?: string;
@@ -140,10 +139,10 @@ export const events = [
 
 export const mapPlaces: MapPlace[] = [
   { id: "neiwufu", name: "內務府", category: "管理區", note: "管理人員名冊", description: "玩家可查看目前管理團隊、負責職務與上線狀態；實際管理功能仍只對具權限帳號開放。", action: "查看管理人員", limit: "所有玩家可查看", access: "all", image: "./assets/map-v2/place-neiwufu-v2.webp", x: 50, y: 12, status: "共十位執事" },
-  { id: "fengtian", name: "奉天樓", category: "數值提升", note: "仙者祈福", description: "選擇一位仙者祈福，依該仙者的祝福增加福氣。", action: "選擇仙者", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-fengtian-v2.webp", x: 76, y: 30, status: "十位仙者候駕" },
-  { id: "yueshu", name: "閱書院", category: "數值提升", note: "先生授業", description: "選擇一位先生研讀四書五經，依先生的課業增加心計。", action: "選擇先生", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-yueshu-v2.webp", x: 25, y: 34, status: "十位先生授課" },
-  { id: "taiyi", name: "太醫院", category: "數值提升", note: "大夫問診", description: "前往太醫院選擇一位大夫請平安脈，依大夫的醫術增加體質。", action: "選擇大夫", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-taiyi-v3.webp", x: 18, y: 66, status: "九位大夫當值" },
-  { id: "guanxian", name: "觀仙台", category: "數值提升", note: "自戲審核後抽籤", description: "先選擇太液池、御花園或上林苑；繳交足額自戲並經主系統通過後，才可由系統隨機抽籤。", action: "查看三處籤池", limit: "須先通過自戲審核", access: "all", image: "./assets/map-v2/place-guanxian-v2.webp", x: 52, y: 50, status: "三處籤池開放", subplaces: ["太液池：100 字自戲／優惠券或威望 50～100", "御花園：300 字自戲／體質、容貌 1～5 點或威望 100～300", "上林苑：500 字自戲／四項能力 1～8 點或威望 150～450"] },
+  { id: "fengtian", name: "奉天樓", category: "數值提升", note: "仙者祈福籤", description: "玩家可指定一支仙者籤；該籤對應的祝福效果與數值只在完成抽籤後揭示。", action: "選擇仙者籤", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-fengtian-v2.webp", x: 76, y: 30, status: "十支仙者籤可選" },
+  { id: "yueshu", name: "閱書院", category: "數值提升", note: "先生授業籤", description: "玩家可指定一支先生籤；該籤對應的授業效果與數值只在完成抽籤後揭示。", action: "選擇先生籤", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-yueshu-v2.webp", x: 25, y: 34, status: "十支先生籤可選" },
+  { id: "taiyi", name: "太醫院", category: "數值提升", note: "大夫問診籤", description: "玩家可指定一支大夫籤；該籤對應的調養效果與數值只在完成抽籤後揭示。", action: "選擇大夫籤", limit: "依已發布規則", access: "all", image: "./assets/map-v2/place-taiyi-v3.webp", x: 18, y: 66, status: "九支大夫籤可選" },
+  { id: "guanxian", name: "觀仙台", category: "數值提升", note: "自戲審核後指定籤", description: "先選擇太液池、御花園或上林苑；繳交足額自戲並經主系統通過後，可指定一支籤，效果於結算後揭示。", action: "查看三處籤池", limit: "須先通過自戲審核", access: "all", image: "./assets/map-v2/place-guanxian-v2.webp", x: 52, y: 50, status: "三處籤池開放", subplaces: ["太液池：100 字自戲／優惠券或威望 50～100", "御花園：300 字自戲／體質、容貌 1～5 點或威望 100～300", "上林苑：500 字自戲／四項能力 1～8 點或威望 150～450"] },
   { id: "cangshu", name: "藏書閣", category: "宮中各地", note: "抽取自戲題目", description: "抽取自戲題目後完成投稿；同一篇自戲不可重複用於數值提升。", action: "抽自戲題目", limit: "依投稿與審核規則", access: "all", image: "./assets/map-v2/place-cangshu-v2.webp", x: 80, y: 67, status: "題庫開放" },
   { id: "market", name: "宮市", category: "宮中各地", note: "服儀、香藥與器物", description: "使用自己的俸祿／銀兩購買宮市道具；價格與效果依《遊戲規則／宮市》呈現。", action: "前往宮市", limit: "依持有俸祿與道具限制", access: "all", image: "./assets/map-v2/place-market-v1.webp", x: 32, y: 83, status: "六類商品開放" },
   { id: "npc-archive", name: "宮中人物", category: "宮中各地", note: "查閱官方 NPC", description: "查看宮中 NPC 的人物資料、能力、位階經歷與個人故事。此處只提供角色設定，不顯示玩家關係數值。", action: "查看 NPC 名冊", limit: "不限次數", access: "all", image: "./assets/npc-redrawn/lan-ronghua-v4.webp", x: 50, y: 89, status: "共八位人物" },
@@ -151,68 +150,59 @@ export const mapPlaces: MapPlace[] = [
 
 export const sceneActivities: SceneActivity[] = [
   {
-    id: "taiyi-doctors", placeId: "taiyi", name: "太醫院", attendantLabel: "大夫", mode: "select",
-    intro: "太醫院諸位大夫今日當值，請小主選擇一位請平安脈。",
+    id: "taiyi-doctors", placeId: "taiyi", name: "太醫院", attendantLabel: "大夫", mode: "choose_draw",
+    intro: "太醫院諸位大夫今日當值，請小主指定一支大夫籤；效果將在抽籤完成後揭示。",
     options: [
-      { id: "qianche", name: "千澈", reward: "體質 +5 點" }, { id: "jingyan", name: "景衍", reward: "體質 +3 點" },
-      { id: "yunchuan", name: "云川", reward: "體質 +7 點" }, { id: "qingchen", name: "卿塵", reward: "體質 +6 點" },
-      { id: "yingxi", name: "應析", reward: "體質 +2 點" }, { id: "huaishu", name: "淮書", reward: "體質 +3 點" },
-      { id: "yancheng", name: "硯城", reward: "體質 +1 點" }, { id: "yiyun", name: "逸云", reward: "體質 +2 點" },
-      { id: "jinglan", name: "景欄", reward: "體質 +4 點" },
+      { id: "qianche", name: "千澈" }, { id: "jingyan", name: "景衍" }, { id: "yunchuan", name: "云川" },
+      { id: "qingchen", name: "卿塵" }, { id: "yingxi", name: "應析" }, { id: "huaishu", name: "淮書" },
+      { id: "yancheng", name: "硯城" }, { id: "yiyun", name: "逸云" }, { id: "jinglan", name: "景欄" },
     ],
   },
   {
-    id: "yueshu-teachers", placeId: "yueshu", name: "閱書院", attendantLabel: "先生", mode: "select",
-    intro: "閱書院今日開講，請小主選擇一位先生授業。",
+    id: "yueshu-teachers", placeId: "yueshu", name: "閱書院", attendantLabel: "先生", mode: "choose_draw",
+    intro: "閱書院今日開講，請小主指定一支先生籤；效果將在抽籤完成後揭示。",
     options: [
-      { id: "qinghe", name: "清河", reward: "心計 +2 點" }, { id: "xiyun", name: "溪云", reward: "心計 +5 點" },
-      { id: "yanzhi", name: "宴之", reward: "心計 +2 點" }, { id: "jingzhi", name: "景之", reward: "心計 +6 點" },
-      { id: "ange", name: "安歌", reward: "心計 +2 點" }, { id: "yuming", name: "逾明", reward: "心計 +1 點" },
-      { id: "huaijin", name: "懷暻", reward: "心計 +3 點" }, { id: "yicheng", name: "奕丞", reward: "心計 +2 點" },
-      { id: "junqi", name: "君迄", reward: "心計 +5 點" }, { id: "yunjian", name: "云澗", reward: "心計 +3 點" },
+      { id: "qinghe", name: "清河" }, { id: "xiyun", name: "溪云" }, { id: "yanzhi", name: "宴之" },
+      { id: "jingzhi", name: "景之" }, { id: "ange", name: "安歌" }, { id: "yuming", name: "逾明" },
+      { id: "huaijin", name: "懷暻" }, { id: "yicheng", name: "奕丞" }, { id: "junqi", name: "君迄" },
+      { id: "yunjian", name: "云澗" },
     ],
   },
   {
-    id: "fengtian-immortals", placeId: "fengtian", name: "奉天樓", attendantLabel: "仙者", mode: "select",
-    intro: "奉天樓香煙繚繞，請小主選擇一位仙者祈福。",
+    id: "fengtian-immortals", placeId: "fengtian", name: "奉天樓", attendantLabel: "仙者", mode: "choose_draw",
+    intro: "奉天樓香煙繚繞，請小主指定一支仙者籤；祝福能力與數值將在抽籤完成後揭示。",
     options: [
-      { id: "jiangzhiyu", name: "江梔予", reward: "福氣 +2 點" }, { id: "shenjingan", name: "沈鏡安", reward: "福氣 +4 點" },
-      { id: "chifuying", name: "池扶盈", reward: "福氣 +1 點" }, { id: "chengshiqing", name: "程時清", reward: "福氣 +7 點" },
-      { id: "yuwandi", name: "虞綰笛", reward: "福氣 +5 點" }, { id: "chuzhenxi", name: "楚枕溪", reward: "福氣 +3 點" },
-      { id: "heliyang", name: "何黎漾", reward: "福氣 +5 點" }, { id: "fuzeLing", name: "傅則靈", reward: "福氣 +3 點" },
-      { id: "quzhining", name: "曲知寧", reward: "福氣 +2 點" }, { id: "jingyiluo", name: "景亦絡", reward: "福氣 +2 點" },
+      { id: "jiangzhiyu", name: "江梔予" }, { id: "shenjingan", name: "沈鏡安" }, { id: "chifuying", name: "池扶盈" },
+      { id: "chengshiqing", name: "程時清" }, { id: "yuwandi", name: "虞綰笛" }, { id: "chuzhenxi", name: "楚枕溪" },
+      { id: "heliyang", name: "何黎漾" }, { id: "fuzeling", name: "傅則靈" }, { id: "quzhining", name: "曲知寧" },
+      { id: "jingyiluo", name: "景亦絡" },
     ],
   },
   {
-    id: "taiye-draw", placeId: "guanxian", name: "太液池", attendantLabel: "宮女", mode: "draw",
+    id: "taiye-draw", placeId: "guanxian", name: "太液池", attendantLabel: "宮女", mode: "choose_draw",
     intro: "恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。",
     requirement: "繳交 100 字戲文，經主系統審核通過", rewardPreview: "有機會獲得優惠券，或威望增加 50～100。",
     options: [
-      { id: "gongxi", name: "貢溪", reward: "威望 +70" }, { id: "yuwu", name: "諭霧", reward: "優惠券 ×1、威望 +50" },
-      { id: "lanying", name: "藍英", reward: "威望 +80" }, { id: "jiamu", name: "嘉穆", reward: "威望 +100" },
-      { id: "liuhua", name: "流華", reward: "威望 +80" },
+      { id: "gongxi", name: "貢溪" }, { id: "yuwu", name: "諭霧" }, { id: "lanying", name: "藍英" },
+      { id: "jiamu", name: "嘉穆" }, { id: "liuhua", name: "流華" },
     ],
   },
   {
-    id: "yuhua-draw", placeId: "guanxian", name: "御花園", attendantLabel: "籤使", mode: "draw",
+    id: "yuhua-draw", placeId: "guanxian", name: "御花園", attendantLabel: "籤使", mode: "choose_draw",
     intro: "恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。",
     requirement: "繳交 300 字戲文，經主系統審核通過", rewardPreview: "有機會獲得體質／容貌增加 1～5 點，或威望增加 100～300。",
     options: [
-      { id: "yaocao", name: "瑤草", reward: "體質 +3 點、容貌 +3 點" }, { id: "suiwan", name: "歲晚", reward: "威望 +250" },
-      { id: "wenyu", name: "聞語", reward: "體質 +5 點" }, { id: "siyao", name: "思遙", reward: "威望 +300" },
-      { id: "yechu", name: "葉初", reward: "容貌 +5 點" },
+      { id: "yaocao", name: "瑤草" }, { id: "suiwan", name: "歲晚" }, { id: "wenyu", name: "聞語" },
+      { id: "siyao", name: "思遙" }, { id: "yechu", name: "葉初" },
     ],
   },
   {
-    id: "shanglin-draw", placeId: "guanxian", name: "上林苑", attendantLabel: "籤使", mode: "draw",
+    id: "shanglin-draw", placeId: "guanxian", name: "上林苑", attendantLabel: "籤使", mode: "choose_draw",
     intro: "恭迎小主，請問小主要去哪裡呢？\n\n抽籤前請記得繳交自戲，主系統通過才可抽籤喔。",
     requirement: "繳交 500 字戲文，經主系統審核通過", rewardPreview: "有機會獲得體質／容貌／心計／福氣增加 1～8 點，或威望增加 150～450。",
     options: [
-      { id: "yujin", name: "渝矜", reward: "心計 +4 點、容貌 +4 點、威望 +200" },
-      { id: "yixian", name: "意弦", reward: "體質 +5 點、福氣 +5 點、威望 +200" },
-      { id: "yanqi", name: "言柒", reward: "體質、容貌、福氣、心計各 +6 點" },
-      { id: "gantang", name: "甘棠", reward: "威望 +400、體質 +5 點、心計 +5 點" },
-      { id: "mujin", name: "穆瑾", reward: "威望 +300、容貌 +5 點、福氣 +5 點" },
+      { id: "yujin", name: "渝矜" }, { id: "yixian", name: "意弦" }, { id: "yanqi", name: "言柒" },
+      { id: "gantang", name: "甘棠" }, { id: "mujin", name: "穆瑾" },
     ],
   },
 ];

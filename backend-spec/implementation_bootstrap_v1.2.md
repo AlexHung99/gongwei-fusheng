@@ -6,7 +6,7 @@
 
 ## 1. 完成定義
 
-本文件不是假設三個專案已存在，而是要求後端開發者從空白 Repository 建立完整 Solution。第一個里程碑不是完成全部 247 支 API，而是：
+本文件不是假設三個專案已存在，而是要求後端開發者從空白 Repository 建立完整 Solution。第一個里程碑不是完成全部 246 支 API，而是：
 
 1. `GongWei.Api`、`GongWei.Admin`、`GongWei.Worker`、共用層、`GongWei.AdminCli` 與測試專案全部建立。
 2. `dotnet restore`、`dotnet build --no-restore --warnaserror`、`dotnet test --no-build` 全部成功。
@@ -14,7 +14,7 @@
 4. LINE Login 已使用 `line_login_attempts`，可抵抗 App Pool 回收與 State 重放。
 5. 任一能力／銀兩異動能以單一交易更新 Result、Ledger、Stats、Chronicle、Progress、Audit 與 Outbox。
 
-不得為了讓編譯通過而建立回傳固定資料的 247 個空 Controller、使用 InMemory DB 代替 PostgreSQL、略過安全驗證，或把待辦藏在 `catch {}`。
+不得為了讓編譯通過而建立回傳固定資料的 246 個空 Controller、使用 InMemory DB 代替 PostgreSQL、略過安全驗證，或把待辦藏在 `catch {}`。
 
 ## 2. Repository 結構
 
@@ -165,7 +165,7 @@ dotnet add tests/GongWei.Architecture.Tests reference src/GongWei.Domain src/Gon
 - 玩家 JSON API，Base Path `/api/v1`。
 - LINE Login、Opaque Cookie Session、CSRF、CORS、Rate Limit、Problem Details、OpenAPI、Request ID。
 - Controller／Endpoint 只做 HTTP Mapping；所有規則呼叫 Application Command／Query。
-- 第一批只做 Health、Meta、Auth、Me 與一條完整角色查詢 Vertical Slice；247 支端點按 `api_v1_v1.2.md` 逐批完成，不建立假 Stub。
+- 第一批只做 Health、Meta、Auth、Me 與一條完整角色查詢 Vertical Slice；246 支端點按 `api_v1_v1.2.md` 逐批完成，不建立假 Stub。
 
 ### 6.2 `GongWei.Admin`
 
@@ -340,7 +340,7 @@ CI 另需：
 ### Batch C 之後
 
 - 依 `api_v1_v1.2.md` P0→P1→P2 完成事件、經濟、宮市、庫存、生育、死亡與營運端點。
-- 每批都必須保持 Solution 可建置，不接受「等 247 支全部寫完再修 Build」。
+- 每批都必須保持 Solution 可建置，不接受「等 246 支全部寫完再修 Build」。
 
 ## 13. 參考
 

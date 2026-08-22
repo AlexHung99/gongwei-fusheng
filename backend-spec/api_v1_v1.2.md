@@ -241,10 +241,9 @@ Auth 穩定錯誤碼：`LINE_ACCESS_DENIED`、`AUTH_STATE_INVALID`、`AUTH_STATE
 | `GET /world/map` | User | — | `WorldMapDto` | 地點及目前角色可用狀態 |
 | `GET /world/locations/{id}` | User | — | `WorldLocationDto` | 不符合可見條件回 404 |
 | `GET /world/locations/{id}/events` | User | `status,cursor,limit` | `CursorPage<EventRoomSummaryDto>` | 事件依地圖地點分類 |
-| `GET /world/locations/{id}/activities` | User | — | `LocationActivityDto[]` | 只回 Published + Enabled；包含可公開人物、條件與獎勵文字 |
+| `GET /world/locations/{id}/activities` | User | — | `LocationActivityDto[]` | 只回 Published + Enabled；選項只含 ID／人物名稱／排序，禁止回傳能力、數值或 RewardPayload |
 | `GET /world/activities/{id}` | User | — | `LocationActivityDto` | 回傳目前角色今日次數、是否具合格自戲與可執行狀態 |
-| `POST /world/activities/{id}/select` | Character | `SelectLocationActivityRequest` | `LocationActivityResultDto` | Idem；僅 `select`；`optionId` 必須屬於該活動且啟用 |
-| `POST /world/activities/{id}/draw` | Character | `DrawLocationActivityRequest` | `LocationActivityResultDto` | Idem；僅 `random_draw`；伺服器按 Weight CSPRNG 抽取，禁止 Client 傳 OptionId |
+| `POST /world/activities/{id}/draw` | Character | `DrawLocationActivityRequest` | `LocationActivityResultDto` | Idem；玩家傳 `optionId` 指定籤；伺服器驗證後才讀取並揭示隱藏效果 |
 | `GET /world/activities/{id}/attempts/me` | Character | `cursor,limit` | `CursorPage<LocationActivityAttemptDto>` | 本人永久歷程；依 `happenedAt,id` 游標分頁 |
 | `GET /npcs` | User | `locationId?,q?,cursor,limit` | `CursorPage<NpcSummaryDto>` | 只回 Published，依 SortOrder 排序 |
 | `GET /npcs/{code}` | User | — | `NpcDetailDto` | 已發布人物資料、能力標籤、位階經歷與個人故事；不含關係數值 |
@@ -263,12 +262,12 @@ Auth 穩定錯誤碼：`LINE_ACCESS_DENIED`、`AUTH_STATE_INVALID`、`AUTH_STATE
 | `PATCH /admin/world/locations/{id}` | GM/SA | `UpsertWorldLocationRequest` | `WorldLocationDto` | `If-Match` |
 | `GET /admin/world/activities` | CE/GM/AUD/SA | `locationId,status,mode,q,cursor,limit` | `CursorPage<AdminLocationActivityDto>` | 含 Draft／Archived 與停用選項 |
 | `POST /admin/world/activities` | CE/GM/SA | `UpsertLocationActivityRequest` | `201 AdminLocationActivityDto` | Idem；預設 Draft；建立原因必填並寫 Audit |
-| `GET /admin/world/activities/{id}` | CE/GM/AUD/SA | — | `AdminLocationActivityDto` | 含 RewardPayload、Weight、Version 與最近異動資訊 |
-| `PATCH /admin/world/activities/{id}` | CE/GM/SA | `UpsertLocationActivityRequest` | `AdminLocationActivityDto` | `If-Match`；名稱、角色稱呼、文案、字數門檻、排序與啟用狀態皆可改 |
+| `GET /admin/world/activities/{id}` | CE/GM/AUD/SA | — | `AdminLocationActivityDto` | 含 ResultRevealText、RewardPayload、Version 與最近異動資訊 |
+| `PATCH /admin/world/activities/{id}` | CE/GM/SA | `UpsertLocationActivityRequest` | `AdminLocationActivityDto` | `If-Match`；名稱、角色稱呼、文案、字數門檻、排序與啟用狀態皆可改；v1.2 模式固定 PlayerChoiceDraw |
 | `POST /admin/world/activities/{id}/publish` | CE/GM/SA | `PublishContentRequest` | `AdminLocationActivityDto` | Idem；至少一個啟用選項；保存 Audit Snapshot |
 | `POST /admin/world/activities/{id}/archive` | CE/GM/SA | `ReasonRequest` | `AdminLocationActivityDto` | Idem；不 Hard Delete，不影響既有 Attempts |
-| `POST /admin/world/activities/{id}/options` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `201 LocationActivityOptionDto` | Idem；結構化效果白名單驗證；理由必填 |
-| `PATCH /admin/world/activity-options/{optionId}` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `LocationActivityOptionDto` | `If-Match`；可編輯大夫／先生／仙者名稱、獎勵、權重、排序與啟用狀態 |
+| `POST /admin/world/activities/{id}/options` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `201 LocationActivityOptionDto` | Idem；結果揭示文字與結構化效果只供後台／結算；理由必填 |
+| `PATCH /admin/world/activity-options/{optionId}` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `LocationActivityOptionDto` | `If-Match`；可編輯人物名稱、抽中後能力／數值、排序與啟用狀態；寫 Audit |
 | `GET /admin/ranks` | GM/AUD/SA | Filters | `RankDto[]` | 含未啟用位階 |
 | `POST /admin/ranks` | GM/SA | `UpsertRankRequest` | `201 RankDto` | Idem |
 | `PATCH /admin/ranks/{id}` | GM/SA | `UpsertRankRequest` | `RankDto` | `If-Match`；不刪除歷史使用中 Rank |
@@ -293,11 +292,12 @@ Auth 穩定錯誤碼：`LINE_ACCESS_DENIED`、`AUTH_STATE_INVALID`、`AUTH_STATE
 
 ### 4.3 場景人物／抽籤交易規則
 
-- `select` 活動（太醫院、閱書院、奉天樓）由玩家傳 `optionId`；API 只接受目前已發布且啟用的活動與選項。前端顯示的獎勵文字不具權威性，實際效果只能取資料庫 `reward_payload`。
-- `random_draw` 活動（太液池、御花園、上林苑）禁止傳 `optionId`。API 必須鎖定合格且 Approved 的自戲投稿、檢查字數門檻與是否已使用，再以加密安全亂數依 `drawWeight` 抽取；交易提交後才回傳結果。
+- 六個初始活動全部為 `player_choice_draw`：玩家先看到籤名清單，再以 `optionId` 指定一支大夫／先生／仙者／宮女／籤使籤。後端不得自行改抽另一支，也不得接受停用或不屬於該活動的 Option。
+- 抽籤前的玩家 DTO、OpenAPI Example、前端 Bundle 與一般 Log 禁止出現籤名對應的能力種類、增加數值、`resultRevealText` 或 `rewardPayload`。只可顯示活動公開文案、一般獎勵範圍及籤名；選定並完成交易後，Result DTO 才回傳該支籤的效果。
+- API 鎖定活動、選項與角色，從資料庫讀取該 `optionId` 當下的隱藏 Reward Snapshot 後結算。當 `minimumApprovedWords > 0` 時，還必須鎖定合格且 Approved 的自戲投稿、檢查字數與是否已使用；門檻為 0 的太醫院／閱書院／奉天樓不要求投稿。
 - v1.2 的四項能力皆以「點」結算，並受 0～1000 上限約束；原始文案中的百分比範圍不另做乘法換算。威望為整數點數，優惠券為 Inventory Item 數量。
 - 一次成功交易必須在同一 PostgreSQL Transaction 內完成：鎖定活動／角色／投稿、寫入 `location_activity_attempts`、更新 `character_stats`、必要的 Ledger／Inventory、`character_chronicle_entries`、`character_progress`、`audit_logs` 與 `outbox_messages`。任一步失敗即全部 Rollback。
-- 結果保存完整 `rewardSnapshot` 與 `rulesVersion`；管理員日後修改大夫或獎勵，不得改寫既有歷程。每次管理端新增、編輯、發布、停用、封存都要求原因並寫入可查詢的永久 Audit。
+- 結果保存完整 `rewardSnapshot` 與 `rulesVersion`；管理員可設定每支籤增加哪個能力及增加多少，但日後修改不得改寫既有歷程。每次管理端新增、編輯、發布、停用、封存都要求原因並寫入可查詢的永久 Audit。
 - Daily Limit 使用 `Asia/Taipei` 日界；初始 Seed 未確認每日次數時為 `null`，代表不額外限制，不得沿用舊前端的每日一次／兩次假資料。
 - 主要錯誤：`ACTIVITY_NOT_PUBLISHED`、`ACTIVITY_MODE_MISMATCH`、`ACTIVITY_OPTION_DISABLED`、`APPROVED_SUBMISSION_REQUIRED`、`SUBMISSION_WORDS_INSUFFICIENT`、`SUBMISSION_ALREADY_USED`、`DAILY_LIMIT_REACHED`、`STAT_CAP_REACHED`、`ACTIVITY_CONFIGURATION_INVALID`。
 
@@ -1028,10 +1028,10 @@ Request 刻意沒有性別與指定人物欄位。
   "code": "taiyi-doctors",
   "displayName": "太醫院",
   "attendantLabel": "大夫",
-  "interactionMode": "select",
-  "introMarkdown": "太醫院諸位大夫今日當值……",
+  "interactionMode": "playerChoiceDraw",
+  "introMarkdown": "太醫院諸位大夫今日當值，請小主指定一支大夫籤……",
   "minimumApprovedWords": 0,
-  "rewardPreview": "依所選大夫增加體質",
+  "rewardPreview": "",
   "dailyLimit": null,
   "usedToday": 0,
   "canPerform": true,
@@ -1041,7 +1041,6 @@ Request 刻意沒有性別與指定人物欄位。
       "id": "uuid",
       "code": "qianche",
       "displayName": "千澈",
-      "publicRewardText": "體質 +5 點",
       "sortOrder": 10
     }
   ],
@@ -1049,23 +1048,23 @@ Request 刻意沒有性別與指定人物欄位。
 }
 ```
 
-管理端的 `LocationActivityOptionDto` 才回傳以下權威欄位；玩家端不得使用或提交 `rewardPayload`／`drawWeight`：
+管理端的 `LocationActivityOptionDto` 才回傳以下權威欄位；玩家端抽籤前不得取得 `resultRevealText` 或 `rewardPayload`：
 
 ```json
 {
+  "resultRevealText": "體質 +5 點",
   "rewardPayload": {
     "effects": [
       { "type": "stat", "code": "vitality", "delta": 5 },
       { "type": "inventory", "code": "coupon", "quantity": 1 }
     ]
   },
-  "drawWeight": 1.0,
   "isEnabled": true,
   "version": 2
 }
 ```
 
-`SelectLocationActivityRequest` 為 `{ "optionId": "uuid" }`；`DrawLocationActivityRequest` 為 `{ "approvedSubmissionId": "uuid" }`，兩者皆要求 `Idempotency-Key` Header。成功結果：
+`DrawLocationActivityRequest` 為 `{ "optionId": "uuid", "approvedSubmissionId": "uuid | null" }`：玩家以 `optionId` 指定籤；只有 `minimumApprovedWords > 0` 的活動必填投稿 ID。所有抽籤皆要求 `Idempotency-Key` Header。成功結果：
 
 ```json
 {
@@ -1212,7 +1211,7 @@ Request 刻意沒有性別與指定人物欄位。
 
 - System／LINE Login／帳號／公開管理名單：14 支。
 - 角色、人物圖片、玩家名冊、稱號與申請：52 支。
-- 世界、場景人物／抽籤、NPC 與遊戲設定：48 支。
+- 世界、場景人物／抽籤、NPC 與遊戲設定：47 支。
 - 事件與外部互動：40 支。
 - 經濟與庫存：27 支。
 - 人物關係：0 支（功能已取消）。
@@ -1222,4 +1221,4 @@ Request 刻意沒有性別與指定人物欄位。
 - 管理儀表板、使用者與營運：11 支。
 - 雙人覆核、Audit、排程：15 支。
 
-合計 247 個 Method + Path 組合；實作可依 Sprint 分批，但已列出的路徑、狀態碼與 DTO 變更必須透過 OpenAPI Review。MVP 不要求第一天全部上線，`後端規格書_v1.2.md` 會標出 P0/P1/P2 實作順序。
+合計 246 個 Method + Path 組合；實作可依 Sprint 分批，但已列出的路徑、狀態碼與 DTO 變更必須透過 OpenAPI Review。MVP 不要求第一天全部上線，`後端規格書_v1.2.md` 會標出 P0/P1/P2 實作順序。
