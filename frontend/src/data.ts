@@ -1,4 +1,4 @@
-export type RouteKey = "home" | "map" | "events" | "players" | "character" | "market" | "more" | "admin";
+export type RouteKey = "home" | "map" | "events" | "players" | "character" | "application" | "market" | "more" | "admin";
 
 export type PortraitOption = {
   id: string;

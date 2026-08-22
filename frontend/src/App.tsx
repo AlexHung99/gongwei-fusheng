@@ -45,7 +45,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, playerProfiles, portraits, staffMembers, type MarketItem, type NpcProfile, type PortraitOption, type RouteKey } from "./data";
 import { ApiError, logout, startLineLogin } from "./api/client";
-import { useGameApi, type CharacterStatsDto, type ChronicleDto, type InventoryDto, type NpcDto, type PlayerDto, type StaffDto } from "./api/game";
+import { useGameApi, type CharacterApplicationDto, type CharacterApplicationPayload, type CharacterRole, type CharacterStatsDto, type ChronicleDto, type NpcDto, type PlayerDto, type PortraitSummaryDto, type StaffDto } from "./api/game";
 
 type InventoryEntry = {
   apiId?: string;
@@ -75,7 +75,7 @@ const supportConfigured = /^https:\/\/buymeacoffee\.com\/[A-Za-z0-9._-]+\/?$/.te
 
 const routeFromHash = (): RouteKey => {
   const value = window.location.hash.replace("#/", "").split("?")[0] as RouteKey;
-  return ["home", "map", "events", "players", "character", "market", "more", "admin"].includes(value) ? value : "home";
+  return ["home", "map", "events", "players", "character", "application", "market", "more", "admin"].includes(value) ? value : "home";
 };
 
 const apiMessage = (error: unknown) => error instanceof ApiError
@@ -142,6 +142,7 @@ function App() {
   const displayStaff = api.staff.length ? api.staff.map((member: StaffDto) => ({ name: member.displayName, role: member.title, duty: member.duty, online: member.lastSeenLabel })) : staffMembers;
   const displayChronicle = api.chronicle.length ? api.chronicle.map(mapChronicle) : chronicle;
   const displayEvents = api.events.length ? api.events.map((event, index) => ({ id: event.id, label: event.type ?? "宮中事件", title: event.title, description: event.summary ?? "請進入事件查看完整內容。", place: event.location?.name ?? "宮中", deadline: event.joinDeadline ? new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "short", timeStyle: "short" }).format(new Date(event.joinDeadline)) : event.status ?? "進行中", participants: event.participantCount ?? 0, tone: ["gold", "jade", "ink"][index % 3] })) : events;
+  const needsApplication = Boolean(api.me && !api.me.character && api.me.characterState === "none");
 
   useEffect(() => {
     const onHashChange = () => setRouteState(routeFromHash());
@@ -149,6 +150,18 @@ function App() {
     if (!window.location.hash) window.location.hash = "#/home";
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  useEffect(() => {
+    if (api.phase === "loading") return;
+    if (needsApplication && route !== "application") {
+      window.location.hash = "#/application";
+      setRouteState("application");
+      window.scrollTo({ top: 0 });
+    } else if (api.me?.character && route === "application") {
+      window.location.hash = "#/character";
+      setRouteState("character");
+    }
+  }, [api.me?.character, api.phase, needsApplication, route]);
 
   useEffect(() => {
     const query = window.location.hash.split("?")[1];
@@ -163,8 +176,9 @@ function App() {
   }, [toast]);
 
   const navigate = (next: RouteKey) => {
-    window.location.hash = `#/${next}`;
-    setRouteState(next);
+    const destination = needsApplication && next !== "application" ? "application" : next;
+    window.location.hash = `#/${destination}`;
+    setRouteState(destination);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -212,13 +226,12 @@ function App() {
         </nav>
 
         <section className="sidebar-profile" aria-label="自己的帳號與角色狀態">
-          <button className="sidebar-profile-main" onClick={() => navigate("character")}>
+          <button className="sidebar-profile-main" onClick={() => navigate(needsApplication ? "application" : "character")}>
             <img src={displayPortrait.src} alt={`${displayPortrait.name}人物立繪`} />
             <span><small>{api.me ? api.me.user.displayName : "尚未 LINE 登入"}</small><strong>{api.me?.character?.displayName ?? "訪客"}</strong><em>{api.me?.character?.rank?.name ?? (api.me ? "尚未建立正式角色" : "登入後載入人物")}</em></span>
             <Settings size={15} />
           </button>
-          <div className="sidebar-self-stats"><span>體質<strong>{liveStats?.vitality.value ?? 570}</strong><em>{liveStats?.vitality.label ?? "康健"}</em></span><span>心計<strong>{liveStats?.strategy.value ?? 640}</strong><em>{liveStats?.strategy.label ?? "高深"}</em></span><span>容貌<strong>{liveStats?.appearance.value ?? 820}</strong><em>{liveStats?.appearance.label ?? "絕世"}</em></span><span>福氣<strong>{liveStats?.luck.value ?? 380}</strong><em>{liveStats?.luck.label ?? "如意"}</em></span></div>
-          <button className="sidebar-history-link" onClick={() => navigate("character")}><History size={13} />查看狀態與數值歷史</button>
+          {api.me?.character ? <><div className="sidebar-self-stats"><span>體質<strong>{liveStats?.vitality.value ?? "—"}</strong><em>{liveStats?.vitality.label ?? "載入中"}</em></span><span>心計<strong>{liveStats?.strategy.value ?? "—"}</strong><em>{liveStats?.strategy.label ?? "載入中"}</em></span><span>容貌<strong>{liveStats?.appearance.value ?? "—"}</strong><em>{liveStats?.appearance.label ?? "載入中"}</em></span><span>福氣<strong>{liveStats?.luck.value ?? "—"}</strong><em>{liveStats?.luck.label ?? "載入中"}</em></span></div><button className="sidebar-history-link" onClick={() => navigate("character")}><History size={13} />查看狀態與數值歷史</button></> : api.me ? <button className="sidebar-history-link" onClick={() => navigate("application")}><FilePenLine size={13} />先完成角色申請</button> : null}
         </section>
       </aside>
 
@@ -227,7 +240,7 @@ function App() {
           <div className="date-chip"><CalendarDays size={16} /><span>{api.world?.displayDate ?? api.world?.currentDateLabel ?? api.world?.eraName ?? "宮廷日曆載入中"}</span></div>
           <div className="top-actions">
             <button className="top-line-button" onClick={() => api.me ? void logout().then(() => window.location.reload()).catch((error) => setToast(apiMessage(error))) : startLineLogin()} aria-label={api.me ? "登出" : "使用 LINE 登入"}><MessageCircleMore size={17} /><span>{api.me ? "登出" : "LINE 登入"}</span></button>
-            <button className="top-register-button" onClick={() => api.me ? navigate("character") : startLineLogin()} aria-label="註冊角色"><FilePenLine size={16} /><span>{api.me?.character ? "人物" : "註冊"}</span></button>
+            <button className="top-register-button" onClick={() => api.me ? navigate(api.me.character ? "character" : "application") : startLineLogin()} aria-label="註冊角色"><FilePenLine size={16} /><span>{api.me?.character ? "人物" : "建角"}</span></button>
             <button className="top-coffee-button" onClick={() => setSupportOpen(true)} aria-label="請我們喝杯咖啡"><Coffee size={17} /><span>請喝咖啡</span></button>
             <button className="icon-button notification-button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-label="通知">
               <Bell size={19} />{(api.me?.unreadNotificationCount ?? 0) > 0 && <i>{api.me?.unreadNotificationCount}</i>}
@@ -244,6 +257,7 @@ function App() {
           {route === "map" && <MapView navigate={navigate} onToast={setToast} npcItems={displayNpcs} staffItems={displayStaff} />}
           {route === "events" && <EventsView onToast={setToast} activities={api.chronicle.length ? displayChronicle.map((entry, index) => ({ id: `api-${index}`, time: entry.date, place: entry.place, player: api.me?.character?.displayName ?? "我的人物", playerTitle: api.me?.character?.rank?.name ?? "", action: entry.title, detail: entry.detail, cost: entry.changes.filter((change) => change.delta < 0).map((change) => `${change.label} ${change.delta}`).join("、") || "無", results: entry.changes.filter((change) => change.delta >= 0).map((change) => `${change.label} +${change.delta}`), tone: "jade" })) : palaceActivities} players={displayPlayers} />}
           {route === "players" && <PlayerDirectoryView players={displayPlayers} />}
+          {route === "application" && <CharacterApplicationView current={api.application} apiAvailable={api.applicationApiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} refresh={gameApi.refresh} onToast={setToast} />}
           {route === "character" && <CharacterView portrait={displayPortrait} balance={displayBalance} inventory={displayInventory} market={displayMarketItems} statsDto={liveStats} history={displayChronicle} openPicker={() => setPortraitPickerOpen(true)} navigate={navigate} onUse={useInventoryItem} />}
           {route === "market" && <MarketView balance={displayBalance} items={displayMarketItems} onPurchase={purchaseItem} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
@@ -285,6 +299,133 @@ function ApiStatus({ phase, unavailable, onRetry }: { phase: "loading" | "guest"
   if (phase === "loading") return <div className="api-status loading"><Sparkles size={14} />正在同步正式遊戲資料…</div>;
   if (phase === "guest") return <div className="api-status guest"><MessageCircleMore size={14} />尚未登入；目前顯示美術示範資料。<button onClick={startLineLogin}>使用 LINE 登入</button></div>;
   return <div className="api-status degraded"><AlertCircle size={14} />部分 API 尚未提供：{unavailable.join("、")}。未載入部分顯示示範資料。<button onClick={onRetry}>重試</button></div>;
+}
+
+const emptyApplication = (): CharacterApplicationPayload => ({
+  role: "consort", familyName: "", givenName: "", courtesyName: null, birthDateLabel: "", age: 17,
+  appearance: "", biography: "", personality: "", strengths: "", weaknesses: "", likes: "", dislikes: "",
+  portraitId: null, playerPortraitSubmissionId: null, formData: {},
+});
+
+const payloadFromApplication = (application: CharacterApplicationDto): CharacterApplicationPayload => ({
+  role: application.role, familyName: application.familyName, givenName: application.givenName,
+  courtesyName: application.courtesyName, birthDateLabel: application.birthDateLabel, age: application.age,
+  appearance: application.appearance, biography: application.biography, personality: application.personality,
+  strengths: application.strengths, weaknesses: application.weaknesses, likes: application.likes, dislikes: application.dislikes,
+  portraitId: application.portraitId, playerPortraitSubmissionId: application.playerPortraitSubmissionId, formData: application.formData ?? {},
+});
+
+function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadPortrait, saveApplication, submitApplication, refresh, onToast }: {
+  current: CharacterApplicationDto | null;
+  apiAvailable: boolean;
+  getPortraits: (role: CharacterRole) => Promise<PortraitSummaryDto[]>;
+  uploadPortrait: (file: File, role?: string) => Promise<{ id: string; previewUrl?: string; url?: string }>;
+  saveApplication: (payload: CharacterApplicationPayload, current?: CharacterApplicationDto | null) => Promise<CharacterApplicationDto>;
+  submitApplication: (application: CharacterApplicationDto) => Promise<CharacterApplicationDto>;
+  refresh: () => Promise<void>;
+  onToast: (message: string) => void;
+}) {
+  const [form, setForm] = useState<CharacterApplicationPayload>(current ? payloadFromApplication(current) : emptyApplication());
+  const [portraitsList, setPortraitsList] = useState<PortraitSummaryDto[]>([]);
+  const [portraitsLoading, setPortraitsLoading] = useState(false);
+  const [customPreview, setCustomPreview] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+  const editable = !current || ["draft", "needsRevision", "needs_revision"].includes(current.status);
+
+  useEffect(() => {
+    setForm(current ? payloadFromApplication(current) : emptyApplication());
+  }, [current]);
+
+  useEffect(() => {
+    let active = true;
+    setPortraitsLoading(true);
+    getPortraits(form.role).then((items) => { if (active) setPortraitsList(items); }).catch(() => { if (active) setPortraitsList([]); }).finally(() => { if (active) setPortraitsLoading(false); });
+    return () => { active = false; };
+  }, [form.role, getPortraits]);
+
+  const changeRole = (role: CharacterRole) => {
+    const royal = role !== "consort";
+    setForm((value) => ({ ...value, role, familyName: royal ? "蕭" : value.familyName === "蕭" ? "" : value.familyName, age: royal ? 0 : 17, birthDateLabel: royal ? null : value.birthDateLabel ?? "", portraitId: null, playerPortraitSubmissionId: null }));
+    setCustomPreview("");
+    setErrors([]);
+  };
+  const setText = (field: keyof CharacterApplicationPayload, value: string | number | null) => setForm((currentForm) => ({ ...currentForm, [field]: value }));
+  const validateSubmit = () => {
+    const validation: string[] = [];
+    if (!form.familyName.trim() || !form.givenName.trim()) validation.push("請填寫完整姓名。");
+    if (form.role === "consort" && (form.age < 15 || form.age > 18)) validation.push("嬪妃年齡需為 15～18 歲。");
+    if (form.appearance.trim().length < 60) validation.push("容貌描述至少需要 60 字。");
+    if (form.biography.trim().length < 200) validation.push("人物自介至少需要 200 字。");
+    (["personality", "strengths", "weaknesses", "likes", "dislikes"] as const).forEach((field) => { if (form[field].trim().length < 50) validation.push(`${({ personality: "性格", strengths: "擅長", weaknesses: "不擅長", likes: "喜歡", dislikes: "不喜歡" })[field]}至少需要 50 字。`); });
+    if (Boolean(form.portraitId) === Boolean(form.playerPortraitSubmissionId)) validation.push("請選擇一張官方立繪，或上傳一張自訂立繪。");
+    setErrors(validation);
+    return validation.length === 0;
+  };
+  const saveDraft = async () => {
+    if (!apiAvailable) { onToast("建角申請 API 尚未開放，草稿沒有送出。"); return null; }
+    setSaving(true); setErrors([]);
+    try { const saved = await saveApplication(form, current); onToast("建角草稿已儲存。"); await refresh(); return saved; }
+    catch (error) { setErrors([apiMessage(error)]); return null; }
+    finally { setSaving(false); }
+  };
+  const submit = async () => {
+    if (!validateSubmit() || !apiAvailable) return;
+    setSubmitting(true);
+    try {
+      const saved = await saveApplication(form, current);
+      await submitApplication(saved);
+      onToast("角色申請已送出，請等待管理人員審核。");
+      await refresh();
+    } catch (error) { setErrors([apiMessage(error)]); }
+    finally { setSubmitting(false); }
+  };
+  const uploadCustomPortrait = async (file?: File) => {
+    if (!file) return;
+    if (!apiAvailable) { setErrors(["建角申請 API 尚未開放，無法上傳立繪。"]); return; }
+    setSaving(true); setErrors([]);
+    try {
+      const uploaded = await uploadPortrait(file, form.role);
+      setForm((value) => ({ ...value, portraitId: null, playerPortraitSubmissionId: uploaded.id }));
+      setCustomPreview(uploaded.previewUrl ?? uploaded.url ?? URL.createObjectURL(file));
+      onToast("自訂立繪已上傳，送審前仍可更換。");
+    } catch (error) { setErrors([apiMessage(error)]); }
+    finally { setSaving(false); }
+  };
+
+  if (current && !editable) {
+    const statusCopy: Record<string, { title: string; detail: string }> = {
+      submitted: { title: "申請已送出", detail: "管理人員正在審核你的人物設定。審核完成或要求補件時，系統會發送通知。" },
+      approved: { title: "申請已核准", detail: "角色資料正在建立；皇嗣會進入待生池，嬪妃則依管理流程啟用。" },
+      rejected: { title: "申請未通過", detail: "請查看審核說明，待系統開放重新申請後再建立新草稿。" },
+      cancelled: { title: "申請已取消", detail: "目前沒有進行中的角色申請。" },
+    };
+    const copy = statusCopy[current.status] ?? { title: "申請處理中", detail: "目前申請狀態由管理人員處理中。" };
+    return <div className="application-page"><PageHeading eyebrow="CHARACTER APPLICATION" title="建立角色申請" description="一個 LINE 帳號同時只能擁有一個進行中的角色。" /><section className="application-status section-card"><i><CheckCircle2 size={28} /></i><span><small>{current.status.toUpperCase()}</small><h2>{copy.title}</h2><p>{copy.detail}</p>{current.reviewNote && <blockquote>{current.reviewNote}</blockquote>}<strong>{current.familyName}{current.givenName}・{current.role === "consort" ? "嬪妃" : current.role === "prince" ? "皇子" : "帝姬"}</strong></span></section></div>;
+  }
+
+  return <div className="application-page">
+    <PageHeading eyebrow="CHARACTER APPLICATION" title={current ? "編輯角色申請" : "建立角色申請"} description="先儲存草稿，確認人設與立繪後再送交管理人員審核；未送審的內容可繼續修改。" />
+    {!apiAvailable && <div className="application-api-warning"><AlertCircle size={17} />後端尚未提供建角申請端點。目前可查看表單，但無法儲存或送審。</div>}
+    {current?.status.includes("needs") && <div className="application-revision"><FilePenLine size={17} /><span><strong>管理人員要求補件</strong><small>{current.reviewNote ?? "請修正人物資料後重新送審。"}</small></span></div>}
+    <section className="application-form section-card">
+      <header><div><span>01</span><h2>角色身份</h2><p>角色性別由身份決定；皇子與帝姬建立後進入待生池。</p></div><em>{current ? `草稿 v${current.version}` : "尚未儲存"}</em></header>
+      <div className="role-options">{([{ id: "consort", label: "嬪妃", note: "女性・年齡 15～18" }, { id: "prince", label: "皇子", note: "男性・待生皇嗣" }, { id: "princess", label: "帝姬", note: "女性・待生皇嗣" }] as const).map((role) => <button type="button" key={role.id} className={form.role === role.id ? "active" : ""} onClick={() => changeRole(role.id)}><Crown size={18} /><span><strong>{role.label}</strong><small>{role.note}</small></span></button>)}</div>
+      <div className="application-fields three"><label><span>姓氏</span><input value={form.familyName} disabled={form.role !== "consort"} onChange={(event) => setText("familyName", event.target.value)} maxLength={10} /></label><label><span>名字</span><input value={form.givenName} onChange={(event) => setText("givenName", event.target.value)} maxLength={20} /></label><label><span>表字（選填）</span><input value={form.courtesyName ?? ""} onChange={(event) => setText("courtesyName", event.target.value || null)} maxLength={20} /></label><label><span>年齡</span><input type="number" min={form.role === "consort" ? 15 : 0} max={form.role === "consort" ? 18 : 0} disabled={form.role !== "consort"} value={form.age} onChange={(event) => setText("age", Number(event.target.value))} /></label><label className="wide"><span>生辰{form.role !== "consort" && "（出生時由系統寫入）"}</span><input value={form.birthDateLabel ?? ""} disabled={form.role !== "consort"} onChange={(event) => setText("birthDateLabel", event.target.value)} placeholder="例如：永熙七年三月初七" /></label></div>
+    </section>
+    <section className="application-form section-card">
+      <header><div><span>02</span><h2>人物立繪</h2><p>官方立繪可直接選擇；自訂圖片需先經管理員審核。</p></div></header>
+      {portraitsLoading ? <p className="portrait-loading">正在載入官方立繪…</p> : portraitsList.length > 0 ? <div className="application-portraits">{portraitsList.map((portrait) => { const src = portrait.thumbnailUrl ?? portrait.portraitUrl ?? portrait.url ?? portraits[0].src; return <button type="button" key={portrait.id} className={form.portraitId === portrait.id ? "active" : ""} onClick={() => { setForm((value) => ({ ...value, portraitId: portrait.id, playerPortraitSubmissionId: null })); setCustomPreview(""); }}><img src={src} alt={portrait.displayName ?? portrait.name ?? "官方立繪"} /><span>{portrait.displayName ?? portrait.name ?? "官方立繪"}</span>{form.portraitId === portrait.id && <CheckCircle2 size={18} />}</button>; })}</div> : <p className="portrait-loading">目前沒有可用的官方立繪，可先儲存草稿或上傳自訂圖片。</p>}
+      <label className={`application-upload ${form.playerPortraitSubmissionId ? "active" : ""}`}><UploadCloud size={24} /><span><strong>{form.playerPortraitSubmissionId ? "自訂立繪已上傳" : "上傳自訂人物圖片"}</strong><small>JPEG、PNG、WebP・最大 8 MB・至少 600 × 800 px</small></span>{customPreview && <img src={customPreview} alt="自訂立繪預覽" />}<input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadCustomPortrait(event.target.files?.[0])} /></label>
+    </section>
+    <section className="application-form section-card">
+      <header><div><span>03</span><h2>人物設定</h2><p>草稿可不完整；送審時會檢查最低字數。</p></div></header>
+      <div className="application-fields textareas"><label><span>容貌描述 <em>{form.appearance.length} / 60 字以上</em></span><textarea value={form.appearance} onChange={(event) => setText("appearance", event.target.value)} /></label><label><span>人物自介 <em>{form.biography.length} / 200 字以上</em></span><textarea className="long" value={form.biography} onChange={(event) => setText("biography", event.target.value)} /></label>{([{ field: "personality", label: "性格" }, { field: "strengths", label: "擅長" }, { field: "weaknesses", label: "不擅長" }, { field: "likes", label: "喜歡" }, { field: "dislikes", label: "不喜歡" }] as const).map((item) => <label key={item.field}><span>{item.label} <em>{form[item.field].length} / 50 字以上</em></span><textarea value={form[item.field]} onChange={(event) => setText(item.field, event.target.value)} /></label>)}</div>
+    </section>
+    {errors.length > 0 && <section className="application-errors"><AlertCircle size={18} /><div><strong>請確認下列項目</strong>{errors.map((error) => <p key={error}>{error}</p>)}</div></section>}
+    <footer className="application-actions"><span><ShieldCheck size={17} />送審後須等待管理人員核准，期間不可重複建立其他角色。</span><div><button type="button" className="ghost-button" disabled={saving || submitting || !apiAvailable} onClick={() => void saveDraft()}>{saving ? "儲存中…" : "儲存草稿"}</button><button type="button" className="primary-button" disabled={saving || submitting || !apiAvailable} onClick={() => void submit()}>{submitting ? "送審中…" : "確認並送出申請"}<Send size={16} /></button></div></footer>
+  </div>;
 }
 
 function HomeView({ navigate, onToast, eventItems, stats, balance, rankName }: { navigate: (route: RouteKey) => void; onToast: (message: string) => void; eventItems: typeof events; stats: CharacterStatsDto | null; balance: number; rankName?: string }) {

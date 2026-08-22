@@ -48,6 +48,41 @@ export type InventoryDto = { id: string; itemCode: string; displayName?: string;
 export type WalletDto = { currencyCode: string; balance: number };
 export type WorldStateDto = { eraName?: string; displayDate?: string; currentDateLabel?: string; maintenanceMode?: boolean };
 export type SupportDto = { enabled: boolean; configured: boolean; url: string | null; label: string; version: number };
+export type CharacterRole = "consort" | "prince" | "princess";
+export type CharacterApplicationPayload = {
+  role: CharacterRole;
+  familyName: string;
+  givenName: string;
+  courtesyName: string | null;
+  birthDateLabel: string | null;
+  age: number;
+  appearance: string;
+  biography: string;
+  personality: string;
+  strengths: string;
+  weaknesses: string;
+  likes: string;
+  dislikes: string;
+  portraitId: string | null;
+  playerPortraitSubmissionId: string | null;
+  formData: Record<string, unknown>;
+};
+export type CharacterApplicationDto = CharacterApplicationPayload & {
+  id: string;
+  status: "draft" | "submitted" | "needsRevision" | "needs_revision" | "approved" | "rejected" | "cancelled";
+  version: number;
+  reviewNote?: string | null;
+  submittedAt?: string | null;
+};
+export type PortraitSummaryDto = {
+  id: string;
+  role: CharacterRole;
+  displayName?: string;
+  name?: string;
+  portraitUrl?: string;
+  url?: string;
+  thumbnailUrl?: string;
+};
 type CursorPage<T> = { items: T[]; nextCursor: string | null };
 
 export type GameApiState = {
@@ -64,10 +99,12 @@ export type GameApiState = {
   wallets: WalletDto[];
   world: WorldStateDto | null;
   support: SupportDto | null;
+  application: CharacterApplicationDto | null;
+  applicationApiAvailable: boolean;
   unavailable: string[];
 };
 
-const initialState: GameApiState = { phase: "loading", me: null, stats: null, chronicle: [], players: [], staff: [], npcs: [], events: [], offers: [], inventory: [], wallets: [], world: null, support: null, unavailable: [] };
+const initialState: GameApiState = { phase: "loading", me: null, stats: null, chronicle: [], players: [], staff: [], npcs: [], events: [], offers: [], inventory: [], wallets: [], world: null, support: null, application: null, applicationApiAvailable: true, unavailable: [] };
 
 async function optional<T>(label: string, path: string): Promise<{ label: string; value?: T }> {
   try { return { label, value: await apiRequest<T>(path) }; }
@@ -90,16 +127,22 @@ export function useGameApi() {
     }
 
     const characterId = me.character?.id;
+    let application: CharacterApplicationDto | null = null;
+    let applicationApiAvailable = true;
+    if (!characterId) {
+      try { application = (await apiRequest<CharacterApplicationDto | undefined>("/character-applications/current")) ?? null; }
+      catch { applicationApiAvailable = false; }
+    }
     const requests = await Promise.all([
-      optional<CharacterStatsDto>("人物能力", "/characters/me/stats"),
+      characterId ? optional<CharacterStatsDto>("人物能力", "/characters/me/stats") : Promise.resolve({ label: "人物能力", value: null }),
       characterId ? optional<CursorPage<ChronicleDto>>("人物歷程", `/characters/${encodeURIComponent(characterId)}/chronicle?scope=all&limit=100`) : Promise.resolve({ label: "人物歷程", value: { items: [], nextCursor: null } }),
       optional<CursorPage<PlayerDto>>("玩家名冊", "/players?limit=100"),
       optional<StaffDto[]>("管理名單", "/staff"),
       optional<CursorPage<{ code: string }>>("NPC 名冊", "/npcs?limit=100"),
       optional<CursorPage<EventDto>>("事件", "/events?limit=100"),
-      optional<CursorPage<MarketOfferDto>>("宮市", "/market/offers?limit=100"),
-      optional<CursorPage<InventoryDto>>("庫存", "/inventory?limit=100"),
-      optional<WalletDto[]>("銀兩", "/wallets"),
+      characterId ? optional<CursorPage<MarketOfferDto>>("宮市", "/market/offers?limit=100") : Promise.resolve({ label: "宮市", value: { items: [], nextCursor: null } }),
+      characterId ? optional<CursorPage<InventoryDto>>("庫存", "/inventory?limit=100") : Promise.resolve({ label: "庫存", value: { items: [], nextCursor: null } }),
+      characterId ? optional<WalletDto[]>("銀兩", "/wallets") : Promise.resolve({ label: "銀兩", value: [] }),
       optional<WorldStateDto>("宮廷日曆", "/world/state"),
     ]);
     const [stats, history, players, staff, npcIndex, events, offers, inventory, wallets, world] = requests;
@@ -116,6 +159,8 @@ export function useGameApi() {
       chronicle: history.value?.items ?? [], players: players.value?.items ?? [], staff: staff.value ?? [], npcs: npcDetails,
       events: events.value?.items ?? [], offers: offers.value?.items ?? [], inventory: inventory.value?.items ?? [], wallets: wallets.value ?? [], world: world.value ?? null,
       support: supportResult.value ?? null,
+      application,
+      applicationApiAvailable,
       unavailable,
     });
   }, []);
@@ -125,6 +170,11 @@ export function useGameApi() {
   const purchase = async (marketOfferId: string) => apiRequest<{ walletBalance: number }>("/market/purchases", { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify({ marketOfferId, quantity: 1 }) });
   const useItem = async (entryId: string) => apiRequest<void>(`/inventory/${entryId}/use`, { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify({ quantity: 1, targetCharacterId: null, context: {} }) });
   const uploadPortrait = async (file: File, role = "consort") => { const body = new FormData(); body.append("file", file); body.append("role", role); return apiRequest<{ id: string; previewUrl?: string; url?: string }>("/portrait-uploads", { method: "POST", headers: createIdempotencyHeaders(), body }); };
+  const getPortraits = async (role: CharacterRole) => apiRequest<PortraitSummaryDto[]>(`/portraits?role=${encodeURIComponent(role)}`);
+  const saveApplication = async (payload: CharacterApplicationPayload, current?: CharacterApplicationDto | null) => current
+    ? apiRequest<CharacterApplicationDto>(`/character-applications/${encodeURIComponent(current.id)}`, { method: "PATCH", headers: { "If-Match": `"${current.version}"` }, body: JSON.stringify(payload) })
+    : apiRequest<CharacterApplicationDto>("/character-applications", { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify(payload) });
+  const submitApplication = async (application: CharacterApplicationDto) => apiRequest<CharacterApplicationDto>(`/character-applications/${encodeURIComponent(application.id)}/submit`, { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify({ expectedVersion: application.version }) });
 
-  return { state, refresh, purchase, useItem, uploadPortrait };
+  return { state, refresh, purchase, useItem, uploadPortrait, getPortraits, saveApplication, submitApplication };
 }
