@@ -1,0 +1,4 @@
+@model IReadOnlyList<CharacterApplicationRow>
+@{ ViewData["Title"] = "建角審核"; }
+<section class="page-heading"><div><p class="eyebrow">CHARACTER APPLICATIONS</p><h1>建角審核</h1><p>審閱玩家正式角色申請、立繪與退回補件狀態。</p></div></section>
+<section class="panel table-panel"><div class="table-tools"><input data-table-filter placeholder="搜尋角色或身分…" /><span>共 @Model.Count 份</span></div><div class="table-scroll"><table><thead><tr><th>角色</th><th>身分</th><th>狀態</th><th>提交時間</th><th>版次</th><th>備註</th></tr></thead><tbody data-filter-target>@foreach (var row in Model){<tr><td><strong>@row.DisplayName</strong><small>@row.Id</small></td><td>@row.Role</td><td><span class="status @row.Status">@row.Status</span></td><td>@row.SubmittedAt.ToString("MM/dd HH:mm")</td><td>r@row.Revision</td><td>@(row.ReviewNote ?? "—")</td></tr>}</tbody></table></div></section>

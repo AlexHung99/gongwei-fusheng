@@ -1,0 +1,4 @@
+@model IReadOnlyList<AdminAuditRow>
+@{ ViewData["Title"] = "稽核紀錄"; }
+<section class="page-heading"><div><p class="eyebrow">AUDIT LOG</p><h1>永久稽核紀錄</h1><p>能力、銀兩、內容與設定異動皆須保留執行者及理由。</p></div></section>
+<section class="panel table-panel"><div class="table-tools"><input data-table-filter placeholder="搜尋操作者、動作或目標…" /><span>目前顯示 @Model.Count 筆</span></div><div class="table-scroll"><table><thead><tr><th>時間</th><th>操作者</th><th>動作／目標</th><th>異動前</th><th>異動後</th><th>理由</th><th>Request ID</th></tr></thead><tbody data-filter-target>@foreach (var row in Model){<tr><td>@row.OccurredAt.ToString("MM/dd HH:mm:ss")</td><td><strong>@row.Actor</strong></td><td><code>@row.Action</code><small>@row.Target</small></td><td>@row.BeforeSummary</td><td>@row.AfterSummary</td><td>@row.Reason</td><td><code>@row.RequestId</code></td></tr>}</tbody></table></div></section>

@@ -1,0 +1,41 @@
+@using GongWei.Admin.Security
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"]｜宮闈浮生管理臺</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="admin-shell">
+        <aside class="sidebar" id="sidebar">
+            <a class="brand" asp-controller="Home" asp-action="Index"><span class="brand-seal">宮</span><span><strong>宮闈浮生</strong><small>管理中樞</small></span></a>
+            <nav class="nav-list" aria-label="後台功能">
+                <a asp-controller="Home" asp-action="Index"><span>儀</span>總覽</a>
+                <a asp-controller="Applications" asp-action="Index"><span>審</span>建角審核</a>
+                <a asp-controller="SceneActivities" asp-action="Index"><span>籤</span>場景與籤池</a>
+                <a asp-controller="Npcs" asp-action="Index"><span>冊</span>NPC 內容</a>
+                <a asp-controller="Settings" asp-action="Index"><span>律</span>遊戲設定</a>
+                <a asp-controller="Audit" asp-action="Index"><span>錄</span>稽核紀錄</a>
+            </nav>
+            <div class="sidebar-foot"><span class="status-dot"></span>系統連線正常<small>後台介面 v1.0</small></div>
+        </aside>
+        <div class="workspace">
+            <header class="topbar">
+                <button class="menu-button" type="button" data-sidebar-toggle aria-label="開啟選單">☰</button>
+                <div class="breadcrumb">內廷管理處 <span>／</span> @ViewData["Title"]</div>
+                <div class="admin-identity"><span class="avatar">@(User.Identity?.Name?.FirstOrDefault() ?? '管')</span><span><strong>@(User.Identity?.Name ?? "未登入")</strong><small>管理人員</small></span></div>
+            </header>
+            <main class="content">
+                @if (User.HasClaim(AdminPolicies.PreviewClaim, "true")) { <div class="preview-banner">開發預覽資料：本頁操作只保存在記憶體，不會寫入正式資料庫。</div> }
+                @if (TempData["Success"] is string success) { <div class="flash success">✓ @success</div> }
+                @if (TempData["Error"] is string error) { <div class="flash error">! @error</div> }
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

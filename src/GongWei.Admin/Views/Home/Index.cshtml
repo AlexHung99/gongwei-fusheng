@@ -1,0 +1,13 @@
+@model DashboardViewModel
+@{ ViewData["Title"] = "今日總覽"; }
+<section class="page-heading"><div><p class="eyebrow">PALACE OPERATIONS</p><h1>今日宮務</h1><p>集中處理待審項目、場景內容與異動紀錄。</p></div><time>@DateTimeOffset.Now.ToString("yyyy 年 MM 月 dd 日")</time></section>
+<section class="metric-grid">
+    <article class="metric rose"><span>待審建角</span><strong>@Model.PendingApplications</strong><small>份申請</small></article>
+    <article class="metric jade"><span>待審戲文</span><strong>@Model.PendingPosts</strong><small>篇投稿</small></article>
+    <article class="metric gold"><span>已上線活動</span><strong>@Model.ActiveSceneActivities</strong><small>個場景</small></article>
+    <article class="metric ink"><span>今日異動</span><strong>@Model.AuditEventsToday</strong><small>筆紀錄</small></article>
+</section>
+<div class="two-column">
+    <section class="panel"><div class="panel-title"><div><p class="eyebrow">WORK QUEUE</p><h2>待辦隊列</h2></div><a asp-controller="Applications" asp-action="Index">查看全部</a></div><div class="queue-list">@foreach (var item in Model.Queue){<article><span class="queue-mark @item.Tone">@item.Kind[..1]</span><div><strong>@item.Title</strong><p>@item.Detail</p></div><time>@item.Age</time></article>}</div></section>
+    <section class="panel"><div class="panel-title"><div><p class="eyebrow">RECENT AUDIT</p><h2>近期異動</h2></div><a asp-controller="Audit" asp-action="Index">完整紀錄</a></div><div class="timeline">@foreach (var row in Model.RecentAudit){<article><span></span><div><strong>@row.Target</strong><p>@row.Actor · @row.Action</p><small>@row.Reason</small></div><time>@row.OccurredAt.ToString("HH:mm")</time></article>}</div></section>
+</div>

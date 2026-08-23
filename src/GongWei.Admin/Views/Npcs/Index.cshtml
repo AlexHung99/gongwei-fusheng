@@ -1,0 +1,4 @@
+@model IReadOnlyList<NpcContentRow>
+@{ ViewData["Title"] = "NPC 內容"; }
+<section class="page-heading"><div><p class="eyebrow">NPC CONTENT</p><h1>NPC 內容管理</h1><p>維護人物稱號、故事、立繪與發布版本。</p></div><button class="button primary" disabled>新增 NPC</button></section>
+<section class="panel table-panel"><div class="table-scroll"><table><thead><tr><th>人物</th><th>稱號</th><th>內容代碼</th><th>狀態</th><th>更新時間</th><th>版本</th></tr></thead><tbody>@foreach (var row in Model){<tr><td><strong>@row.DisplayName</strong><small>@row.Id</small></td><td>@row.Title</td><td><code>@row.Code</code></td><td><span class="status @row.Status">@row.Status</span></td><td>@row.UpdatedAt.ToString("yyyy/MM/dd HH:mm")</td><td>v@row.Version</td></tr>}</tbody></table></div><p class="prototype-note">完整新增／編輯命令由 GongWei.Application 接上後啟用；本版先完成查詢及導覽。</p></section>

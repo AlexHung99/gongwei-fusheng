@@ -1,0 +1,9 @@
+@model IReadOnlyList<SceneActivitySummary>
+@{ ViewData["Title"] = "場景與籤池"; }
+<section class="page-heading"><div><p class="eyebrow">SCENE ACTIVITIES</p><h1>場景與籤池</h1><p>設定玩家可選擇的籤名、隱藏效果與戲文字數門檻。</p></div></section>
+<div class="notice-card"><strong>隱藏效果規則</strong><p>玩家抽籤前只能看到籤名，不得取得加成內容；完成抽籤後才由後端回傳該次結果。</p></div>
+<section class="card-grid">
+@foreach (var item in Model) {
+    <article class="scene-card"><div class="scene-symbol">@item.LocationName[..1]</div><div class="scene-main"><div class="card-meta"><span class="status @item.Status">@(item.Status == "published" ? "已發布" : "草稿")</span><code>@item.Code</code></div><h2>@item.LocationName</h2><p>@item.DisplayName · @item.AttendantLabel</p></div><dl><div><dt>戲文門檻</dt><dd>@item.MinimumApprovedWords 字</dd></div><div><dt>啟用籤數</dt><dd>@item.EnabledOptionCount / @item.OptionCount</dd></div><div><dt>版本</dt><dd>v@item.Version</dd></div></dl><a class="button primary" asp-action="Edit" asp-route-id="@item.Id">管理設定</a></article>
+}
+</section>

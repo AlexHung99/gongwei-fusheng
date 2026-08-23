@@ -1,0 +1,5 @@
+@model GameSettingsViewModel
+@{ ViewData["Title"] = "遊戲設定"; }
+<section class="page-heading"><div><p class="eyebrow">GAME SETTINGS</p><h1>遊戲參數</h1><p>顯示目前正式規則值；儲存命令待 Application Use Case 接入。</p></div><span class="version-chip">v@Model.Version</span></section>
+<section class="panel settings-grid"><article><span>侍寢功能</span><strong>@(Model.ReproductionOpen ? "開放" : "暫停")</strong><small>無待生皇嗣時應暫停</small></article><article><span>侍寢成功率</span><strong>@Model.ConceptionRatePercent%</strong><small>目前預設值</small></article><article><span>懷孕時長</span><strong>@Model.PregnancyDurationDays 天</strong><small>依現實日曆</small></article><article><span>流產規則</span><strong>@Model.MiscarriageMode</strong><small>規則仍待確認</small></article><article><span>贊助按鈕</span><strong>@(Model.SupportEnabled ? "顯示" : "隱藏")</strong><small>@Model.SupportUrl</small></article></section>
+<div class="notice-card"><strong>變更要求</strong><p>正式接入時，所有設定調整都必須填寫理由、檢查版本號並在同一交易寫入 Audit Log。</p></div>

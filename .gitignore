@@ -10,3 +10,9 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 .DS_Store
 Thumbs.db
+
+# .NET build outputs and local IDE state
+**/bin/
+**/obj/
+.vs/
+artifacts/
