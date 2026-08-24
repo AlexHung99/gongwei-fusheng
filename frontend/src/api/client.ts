@@ -54,7 +54,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     throw new ApiError(
       response.status,
       problem.code ?? "UNKNOWN_ERROR",
-      problem.detail ?? problem.title ?? "系統暫時無法完成這項操作",
+      problem.detail ?? problem.title ?? `系統暫時無法完成這項操作（HTTP ${response.status}）`,
       problem.requestId ?? response.headers.get("X-Request-Id") ?? requestId,
     );
   }
@@ -80,6 +80,25 @@ export function startLineLogin(): void {
 }
 
 export async function logout(): Promise<void> {
-  await apiRequest<void>("/auth/logout", { method: "POST" });
-  csrfToken = null;
+  const requestLogout = () => apiRequest<void>("/auth/logout", {
+    method: "POST",
+    // An explicit body makes WebKit send a request length. Without it,
+    // IIS can reject a bodyless POST with 411 before ASP.NET Core runs.
+    body: JSON.stringify({}),
+  });
+
+  try {
+    try {
+      await requestLogout();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 403) throw error;
+
+      // A session-bound CSRF token may expire while the page stays open.
+      // Clear it once so apiRequest fetches a fresh token and retries logout.
+      csrfToken = null;
+      await requestLogout();
+    }
+  } finally {
+    csrfToken = null;
+  }
 }
