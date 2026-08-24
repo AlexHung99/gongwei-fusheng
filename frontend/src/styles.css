@@ -40,11 +40,12 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(166, 78, 
   radial-gradient(circle at 20% 10%, #315b56, transparent 28rem); border-right: 1px solid rgba(255,255,255,.08); }
 .sidebar::after { content: ""; position: absolute; inset: 0; opacity: .08; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Cg fill='none' stroke='%23d2b477' stroke-width='.5'%3E%3Cpath d='M45 8c5 11 12 18 24 23-12 5-19 12-24 23-5-11-12-18-24-23 12-5 19-12 24-23Z'/%3E%3Cpath d='M45 36c4 9 10 15 19 19-9 4-15 10-19 19-4-9-10-15-19-19 9-4 15-10 19-19Z'/%3E%3C/g%3E%3C/svg%3E"); }
 .sidebar > * { position: relative; z-index: 1; }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 28px; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; }
-.brand-seal { display: grid; place-items: center; width: 43px; height: 43px; flex: 0 0 43px; border: 1px solid rgba(211,174,109,.7); color: #e3c58d; font: 700 21px "Noto Serif TC", serif; transform: rotate(45deg); }
-.brand-seal::first-letter { transform: rotate(-45deg); }
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 4px 28px; color: inherit; background: none; border: 0; text-align: left; cursor: pointer; }
+.brand-mark { width: 49px; height: 49px; flex: 0 0 49px; filter: drop-shadow(0 8px 13px rgba(4,20,18,.3)); transition: transform .25s ease, filter .25s ease; }
+.brand:hover .brand-mark { transform: translateY(-1px); filter: drop-shadow(0 10px 16px rgba(4,20,18,.4)); }
 .brand > span:last-child { display: flex; flex-direction: column; }
-.brand strong { font: 700 19px "Noto Serif TC", serif; letter-spacing: .14em; }
+.brand strong { white-space: nowrap; font: 700 15px "Noto Serif TC", serif; letter-spacing: .075em; }
+.brand strong span { margin: 0 .08em; color: #d3ae6d; font-weight: 500; }
 .brand small { margin-top: 4px; color: rgba(250,243,229,.55); font-size: 10px; letter-spacing: .13em; }
 .side-nav { flex: 1; min-height:0; overflow-y:auto; scrollbar-width:none; }.side-nav::-webkit-scrollbar { display:none; }
 .nav-eyebrow { margin: 8px 13px 10px; color: rgba(250,243,229,.37); font-size: 10px; font-weight: 700; letter-spacing: .18em; }

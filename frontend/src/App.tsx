@@ -47,6 +47,27 @@ import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, play
 import { ApiError, logout, startLineLogin } from "./api/client";
 import { useGameApi, type CharacterApplicationDto, type CharacterApplicationPayload, type CharacterRole, type CharacterStatsDto, type ChronicleDto, type NpcDto, type PlayerDto, type PortraitSummaryDto, type StaffDto } from "./api/game";
 
+function BrandMark() {
+  return <svg className="brand-mark" viewBox="0 0 64 64" role="img" aria-label="墨染江山·綠染原山水印記">
+    <defs>
+      <linearGradient id="brand-jade" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#315f58" />
+        <stop offset="1" stopColor="#102d2c" />
+      </linearGradient>
+      <linearGradient id="brand-gold" x1="16" y1="18" x2="52" y2="48" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#efd9a3" />
+        <stop offset="1" stopColor="#b98b46" />
+      </linearGradient>
+    </defs>
+    <rect x="2.5" y="2.5" width="59" height="59" rx="15" fill="url(#brand-jade)" stroke="#d8b66f" />
+    <circle cx="45.5" cy="17.5" r="5" fill="#d8b66f" />
+    <path d="M9 43.5 20.5 29l7.2 8.3L36.5 22 55 43.5" fill="none" stroke="url(#brand-gold)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9 46.5c8-3.5 13.2 3.4 21.1 0s14.3-2.8 24.9.3" fill="none" stroke="#dce7df" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M13 51.5c7-2.2 11.5 1.9 18.1 0 6.8-2 13.2-1.7 20.2.2" fill="none" stroke="#7fa399" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M20.5 29 25 43.5M36.5 22l2.8 21.5" stroke="#d8b66f" strokeWidth=".8" opacity=".45" />
+  </svg>;
+}
+
 type InventoryEntry = {
   apiId?: string;
   name: string;
@@ -204,9 +225,9 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <button className="brand" onClick={() => navigate("home")} aria-label="返回首頁">
-          <span className="brand-seal">宮</span>
-          <span><strong>宮闈浮生</strong><small>一念入局・半生浮沉</small></span>
+        <button className="brand" onClick={() => navigate("home")} aria-label="返回墨染江山·綠染原首頁">
+          <BrandMark />
+          <span><strong>墨染江山<span>·</span>綠染原</strong><small>一念入局・半生浮沉</small></span>
         </button>
 
         <nav className="side-nav" aria-label="主要導覽">
