@@ -132,6 +132,20 @@ export function useGameApi() {
     if (!characterId) {
       try { application = (await apiRequest<CharacterApplicationDto | undefined>("/character-applications/current")) ?? null; }
       catch { applicationApiAvailable = false; }
+
+      // Accounts without an approved character stay inside the onboarding
+      // boundary. Do not preload palace, player, event, market or inventory
+      // data until the backend returns a formal character from GET /me.
+      setState({
+        ...initialState,
+        phase: applicationApiAvailable ? "ready" : "degraded",
+        me,
+        support: supportResult.value ?? null,
+        application,
+        applicationApiAvailable,
+        unavailable: applicationApiAvailable ? [] : ["建角申請"],
+      });
+      return;
     }
     const requests = await Promise.all([
       characterId ? optional<CharacterStatsDto>("人物能力", "/characters/me/stats") : Promise.resolve({ label: "人物能力", value: null }),

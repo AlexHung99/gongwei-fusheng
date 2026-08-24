@@ -42,7 +42,7 @@ import {
   X,
   ZoomIn,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, playerProfiles, portraits, sceneActivities, staffMembers, type MarketItem, type NpcProfile, type PortraitOption, type RouteKey, type SceneActivity } from "./data";
 import { ApiError, logout, startLineLogin } from "./api/client";
 import { useGameApi, type CharacterApplicationDto, type CharacterApplicationPayload, type CharacterRole, type CharacterStatsDto, type ChronicleDto, type NpcDto, type PlayerDto, type PortraitSummaryDto, type StaffDto } from "./api/game";
@@ -98,6 +98,23 @@ const routeFromHash = (): RouteKey => {
   const value = window.location.hash.replace("#/", "").split("?")[0] as RouteKey;
   return ["home", "map", "events", "players", "character", "application", "market", "more", "admin"].includes(value) ? value : "home";
 };
+
+const loginErrorFromHash = () => {
+  if (!window.location.hash.startsWith("#/login-error")) return null;
+  const query = window.location.hash.split("?")[1];
+  return query ? new URLSearchParams(query).get("code") : "UNKNOWN_ERROR";
+};
+
+const loginErrorMessage = (code: string) => ({
+  LINE_ACCESS_DENIED: "你已取消 LINE 授權，尚未完成登入。",
+  AUTH_STATE_INVALID: "登入驗證資料不正確，請重新開始登入。",
+  AUTH_STATE_EXPIRED: "登入頁面已逾時，請重新登入。",
+  AUTH_STATE_REPLAYED: "這次登入已使用過，請重新開始。",
+  AUTH_LINE_TOKEN_FAILED: "LINE 驗證服務暫時無法完成登入。",
+  AUTH_ID_TOKEN_INVALID: "LINE 帳號驗證失敗，請稍後再試。",
+  AUTH_ACCOUNT_SUSPENDED: "此帳號目前無法進入遊戲，請聯絡管理人員。",
+  AUTH_RATE_LIMITED: "登入嘗試過於頻繁，請稍後再試。",
+} as Record<string, string>)[code] ?? `登入未完成（${code}）。`;
 
 const apiMessage = (error: unknown) => error instanceof ApiError
   ? `${error.message}（${error.code}${error.requestId ? `・${error.requestId}` : ""}）`
@@ -163,7 +180,8 @@ function App() {
   const displayStaff = api.staff.length ? api.staff.map((member: StaffDto) => ({ name: member.displayName, role: member.title, duty: member.duty, online: member.lastSeenLabel })) : staffMembers;
   const displayChronicle = api.chronicle.length ? api.chronicle.map(mapChronicle) : chronicle;
   const displayEvents = api.events.length ? api.events.map((event, index) => ({ id: event.id, label: event.type ?? "宮中事件", title: event.title, description: event.summary ?? "請進入事件查看完整內容。", place: event.location?.name ?? "宮中", deadline: event.joinDeadline ? new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "short", timeStyle: "short" }).format(new Date(event.joinDeadline)) : event.status ?? "進行中", participants: event.participantCount ?? 0, tone: ["gold", "jade", "ink"][index % 3] })) : events;
-  const needsApplication = Boolean(api.me && !api.me.character && api.me.characterState === "none");
+  const requiresCharacterGate = Boolean(api.me && !api.me.character);
+  const loginError = loginErrorFromHash();
 
   useEffect(() => {
     const onHashChange = () => setRouteState(routeFromHash());
@@ -174,7 +192,7 @@ function App() {
 
   useEffect(() => {
     if (api.phase === "loading") return;
-    if (needsApplication && route !== "application") {
+    if (requiresCharacterGate && route !== "application") {
       window.location.hash = "#/application";
       setRouteState("application");
       window.scrollTo({ top: 0 });
@@ -182,13 +200,7 @@ function App() {
       window.location.hash = "#/character";
       setRouteState("character");
     }
-  }, [api.me?.character, api.phase, needsApplication, route]);
-
-  useEffect(() => {
-    const query = window.location.hash.split("?")[1];
-    const code = query ? new URLSearchParams(query).get("code") : null;
-    if (code) setToast(`LINE 登入未完成：${code}。請重新登入。`);
-  }, []);
+  }, [api.me?.character, api.phase, requiresCharacterGate, route]);
 
   useEffect(() => {
     if (!toast) return;
@@ -196,10 +208,35 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  const handleLogout = () => void logout()
+    .then(() => window.location.assign(`${window.location.pathname}#/home`))
+    .catch((error) => setToast(apiMessage(error)));
+
+  if (!api.me) {
+    return <LoginGate
+      phase={api.phase}
+      errorCode={loginError}
+      onRetry={() => void gameApi.refresh()}
+      onSupport={() => setSupportOpen(true)}
+      supportModal={supportOpen ? <SupportModal onClose={() => setSupportOpen(false)} setting={api.support} /> : null}
+    />;
+  }
+
+  if (!api.me.character) {
+    return <CharacterAccessGate
+      displayName={api.me.user.displayName}
+      application={api.application}
+      apiAvailable={api.applicationApiAvailable}
+      gameApi={gameApi}
+      onLogout={handleLogout}
+      onToast={setToast}
+      toast={toast}
+    />;
+  }
+
   const navigate = (next: RouteKey) => {
-    const destination = needsApplication && next !== "application" ? "application" : next;
-    window.location.hash = `#/${destination}`;
-    setRouteState(destination);
+    window.location.hash = `#/${next}`;
+    setRouteState(next);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -247,7 +284,7 @@ function App() {
         </nav>
 
         <section className="sidebar-profile" aria-label="自己的帳號與角色狀態">
-          <button className="sidebar-profile-main" onClick={() => navigate(needsApplication ? "application" : "character")}>
+          <button className="sidebar-profile-main" onClick={() => navigate("character")}>
             <img src={displayPortrait.src} alt={`${displayPortrait.name}人物立繪`} />
             <span><small>{api.me ? api.me.user.displayName : "尚未 LINE 登入"}</small><strong>{api.me?.character?.displayName ?? "訪客"}</strong><em>{api.me?.character?.rank?.name ?? (api.me ? "尚未建立正式角色" : "登入後載入人物")}</em></span>
             <Settings size={15} />
@@ -260,8 +297,8 @@ function App() {
         <header className="topbar">
           <div className="date-chip"><CalendarDays size={16} /><span>{api.world?.displayDate ?? api.world?.currentDateLabel ?? api.world?.eraName ?? "宮廷日曆載入中"}</span></div>
           <div className="top-actions">
-            <button className="top-line-button" onClick={() => api.me ? void logout().then(() => window.location.reload()).catch((error) => setToast(apiMessage(error))) : startLineLogin()} aria-label={api.me ? "登出" : "使用 LINE 登入"}><MessageCircleMore size={17} /><span>{api.me ? "登出" : "LINE 登入"}</span></button>
-            <button className="top-register-button" onClick={() => api.me ? navigate(api.me.character ? "character" : "application") : startLineLogin()} aria-label="註冊角色"><FilePenLine size={16} /><span>{api.me?.character ? "人物" : "建角"}</span></button>
+            <button className="top-line-button" onClick={handleLogout} aria-label="登出"><MessageCircleMore size={17} /><span>登出</span></button>
+            <button className="top-register-button" onClick={() => navigate("character")} aria-label="查看人物"><FilePenLine size={16} /><span>人物</span></button>
             <button className="top-coffee-button" onClick={() => setSupportOpen(true)} aria-label="請我們喝杯咖啡"><Coffee size={17} /><span>請喝咖啡</span></button>
             <button className="icon-button notification-button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-label="通知">
               <Bell size={19} />{(api.me?.unreadNotificationCount ?? 0) > 0 && <i>{api.me?.unreadNotificationCount}</i>}
@@ -315,11 +352,74 @@ function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: 
   return <header className="page-heading"><span>{eyebrow}</span><h1>{title}</h1><p>{description}</p></header>;
 }
 
+function LoginGate({ phase, errorCode, onRetry, onSupport, supportModal }: {
+  phase: "loading" | "guest" | "ready" | "degraded";
+  errorCode: string | null;
+  onRetry: () => void;
+  onSupport: () => void;
+  supportModal: ReactNode;
+}) {
+  const checking = phase === "loading";
+  return <div className="login-gate">
+    <img className="login-gate-background" src="./assets/palace-hero.webp" alt="晨霧中的宮苑與蓮池" />
+    <div className="login-gate-shade" />
+    <header className="login-gate-brand"><BrandMark /><span><strong>墨染江山<span>·</span>綠染原</strong><small>一念入局・半生浮沉</small></span></header>
+    <main className="login-gate-card">
+      <p className="login-eyebrow">ENTER THE PALACE</p>
+      <h1>請先登入，方可入局</h1>
+      <p className="login-intro">本遊戲採實名角色流程。使用 LINE 帳號登入、建立人物並通過管理人員審核後，才會開放宮城與遊戲功能。</p>
+      {errorCode && <div className="login-gate-error"><AlertCircle size={18} /><span><strong>LINE 登入未完成</strong><small>{loginErrorMessage(errorCode)}</small></span></div>}
+      {phase === "degraded" && <div className="login-gate-error"><AlertCircle size={18} /><span><strong>目前無法確認登入狀態</strong><small>登入服務連線異常，請稍後重試；在確認身分前不會載入遊戲內容。</small></span><button type="button" onClick={onRetry}>重試</button></div>}
+      <ol className="entry-steps">
+        <li><span>01</span><div><strong>LINE 登入</strong><small>一個 LINE 帳號只能有一個存活角色</small></div></li>
+        <li><span>02</span><div><strong>建立角色</strong><small>填寫人設並選擇官方或自訂立繪</small></div></li>
+        <li><span>03</span><div><strong>等待審核</strong><small>核准並建立正式角色後開放遊戲</small></div></li>
+      </ol>
+      <button className="line-entry-button" type="button" disabled={checking} onClick={startLineLogin}><MessageCircleMore size={20} /><span>{checking ? "正在確認登入狀態…" : "使用 LINE 帳號登入"}</span><ChevronRight size={18} /></button>
+      <p className="login-privacy"><LockKeyhole size={13} />網站不會取得你的 LINE 密碼；登入憑證由後端安全保存。</p>
+      <button className="login-support-link" type="button" onClick={onSupport}><Coffee size={14} />請我們喝杯咖啡</button>
+    </main>
+    <footer className="login-gate-footer">© 2026 墨染江山·綠染原</footer>
+    {supportModal}
+  </div>;
+}
+
+function CharacterAccessGate({ displayName, application, apiAvailable, gameApi, onLogout, onToast, toast }: {
+  displayName: string;
+  application: CharacterApplicationDto | null;
+  apiAvailable: boolean;
+  gameApi: ReturnType<typeof useGameApi>;
+  onLogout: () => void;
+  onToast: (message: string) => void;
+  toast: string;
+}) {
+  const waiting = application?.status === "submitted" || application?.status === "approved";
+  const needsRevision = application?.status === "needsRevision" || application?.status === "needs_revision";
+  return <div className="onboarding-gate">
+    <header className="onboarding-header">
+      <div className="onboarding-brand"><BrandMark /><span><strong>墨染江山·綠染原</strong><small>角色准入流程</small></span></div>
+      <div className="onboarding-account"><span><small>已登入</small><strong>{displayName}</strong></span><button type="button" onClick={onLogout}>登出</button></div>
+    </header>
+    <main className="onboarding-content">
+      <section className="onboarding-progress" aria-label="角色建立進度">
+        <div className="done"><span><CheckCircle2 size={17} /></span><strong>LINE 登入</strong><small>身分已確認</small></div>
+        <i />
+        <div className={waiting ? "done" : "active"}><span>{waiting ? <CheckCircle2 size={17} /> : "2"}</span><strong>{needsRevision ? "補正人物資料" : "建立角色"}</strong><small>{waiting ? "申請已送出" : "填寫人設與立繪"}</small></div>
+        <i />
+        <div className={waiting ? "active" : "pending"}><span>3</span><strong>管理員審核</strong><small>{waiting ? "等待核准中" : "送審後進入"}</small></div>
+      </section>
+      <div className="onboarding-lock-note"><LockKeyhole size={16} /><span><strong>遊戲功能尚未開放</strong><small>通過審核並建立正式角色後，系統才會載入宮城、事件、玩家名冊與宮市。</small></span></div>
+      <CharacterApplicationView current={application} apiAvailable={apiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} refresh={gameApi.refresh} onToast={onToast} />
+    </main>
+    {toast && <div className="toast"><Sparkles size={17} />{toast}</div>}
+  </div>;
+}
+
 function ApiStatus({ phase, unavailable, onRetry }: { phase: "loading" | "guest" | "ready" | "degraded"; unavailable: string[]; onRetry: () => void }) {
   if (phase === "ready") return <div className="api-status live"><CheckCircle2 size={14} />已連線正式遊戲資料</div>;
   if (phase === "loading") return <div className="api-status loading"><Sparkles size={14} />正在同步正式遊戲資料…</div>;
-  if (phase === "guest") return <div className="api-status guest"><MessageCircleMore size={14} />尚未登入；目前顯示美術示範資料。<button onClick={startLineLogin}>使用 LINE 登入</button></div>;
-  return <div className="api-status degraded"><AlertCircle size={14} />部分 API 尚未提供：{unavailable.join("、")}。未載入部分顯示示範資料。<button onClick={onRetry}>重試</button></div>;
+  if (phase === "guest") return <div className="api-status guest"><MessageCircleMore size={14} />登入狀態已失效，請重新登入。</div>;
+  return <div className="api-status degraded"><AlertCircle size={14} />部分遊戲服務暫時無法載入：{unavailable.join("、")}。<button onClick={onRetry}>重試</button></div>;
 }
 
 const emptyApplication = (): CharacterApplicationPayload => ({
@@ -423,7 +523,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
       cancelled: { title: "申請已取消", detail: "目前沒有進行中的角色申請。" },
     };
     const copy = statusCopy[current.status] ?? { title: "申請處理中", detail: "目前申請狀態由管理人員處理中。" };
-    return <div className="application-page"><PageHeading eyebrow="CHARACTER APPLICATION" title="建立角色申請" description="一個 LINE 帳號同時只能擁有一個進行中的角色。" /><section className="application-status section-card"><i><CheckCircle2 size={28} /></i><span><small>{current.status.toUpperCase()}</small><h2>{copy.title}</h2><p>{copy.detail}</p>{current.reviewNote && <blockquote>{current.reviewNote}</blockquote>}<strong>{current.familyName}{current.givenName}・{current.role === "consort" ? "嬪妃" : current.role === "prince" ? "皇子" : "帝姬"}</strong></span></section></div>;
+    return <div className="application-page"><PageHeading eyebrow="CHARACTER APPLICATION" title="建立角色申請" description="一個 LINE 帳號同時只能擁有一個進行中的角色。" /><section className="application-status section-card"><i><CheckCircle2 size={28} /></i><span><small>{current.status.toUpperCase()}</small><h2>{copy.title}</h2><p>{copy.detail}</p>{current.reviewNote && <blockquote>{current.reviewNote}</blockquote>}<strong>{current.familyName}{current.givenName}・{current.role === "consort" ? "嬪妃" : current.role === "prince" ? "皇子" : "帝姬"}</strong><button type="button" className="status-refresh-button" onClick={() => void refresh()}>重新檢查審核狀態</button></span></section></div>;
   }
 
   return <div className="application-page">
