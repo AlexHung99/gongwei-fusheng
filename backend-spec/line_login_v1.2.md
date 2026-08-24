@@ -1,6 +1,7 @@
 # 宮闈浮生 LINE Login 與 Web Session 規格 v1.2
 
 > 定稿日期：2026-08-16  
+> 修訂日期：2026-08-24（Request ID／帳號關聯、登出追查與 Problem Details）
 > LINE Login Channel：宮闈浮生（Channel ID `2011123657`）  
 > Protocol：OAuth 2.0 Authorization Code + OpenID Connect v2.1 + PKCE S256
 > Console 狀態：正式 Callback 已登錄；Channel 暫維持 `Developing`
@@ -154,11 +155,22 @@ Production API 只允許：
 ```csharp
 policy.WithOrigins("https://miglow.vip")
       .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-      .WithHeaders("Content-Type", "X-CSRF-Token", "Idempotency-Key", "If-Match")
+      .WithHeaders("Content-Type", "X-CSRF-Token", "X-Request-Id", "Idempotency-Key", "If-Match")
+      .WithExposedHeaders("X-Request-Id", "ETag", "Idempotency-Replayed")
       .AllowCredentials();
 ```
 
 不得把 `AllowAnyOrigin()` 與 `AllowCredentials()` 併用。`https://www.miglow.vip` 目前只負責 301 到 Apex，不在正式寫入 Allowlist。Local／Staging Origin 用環境設定逐一列出，不得用字尾比對接受攻擊者子網域。
+
+### 5.4 Request ID 與登入帳號關聯
+
+- `X-Request-Id` 是一次 HTTP Request 的 Correlation ID，不是 LINE User ID、站內 User ID 或 Session ID。前端產生的 UUID 只有在後端接收、回傳並寫 Log 後才有追查價值。
+- Request Correlation Middleware 必須在 Authentication／CSRF 前建立 Request ID 與 Logging Scope；缺少或不是合法 UUID 時由 API 重新產生。Response Header 與 Problem Details 必須使用後端最後採用的同一值。
+- Session Middleware 驗證 `gw_session` 後，以資料庫查得的 `user_sessions.id/user_id` 擴充同一 Logging Scope。不得把 Cookie、Session Token Hash、CSRF Token、完整 LINE Sub 或 LINE Token寫入 Log。
+- 登入成功、登出成功、Logout All、Session 撤銷與停權必須寫入永久 `audit_logs`，保存 `actor_user_id + request_id + action + target session database id`。Request ID 不寫入 `users`，也不作帳號外鍵。
+- Authentication／CSRF 失敗若已成功解析 Session，Security Log 必須保存內部 `userId/sessionId`；尚未解析則允許為 `null`。客服以 Request ID 查詢時，先查 `audit_logs`，再查至少保留 180 日的集中式 Security Log。
+- `/api/v1` 的 401、403、429、500 與 CSRF 錯誤一律回 `application/problem+json`，至少包含 `status/code/requestId`；不得回空 Body 或 IIS HTML。CORS 必須讓合法 Origin 讀取 Problem Details 與 `X-Request-Id`。
+- `POST /auth/logout` 必須同時接受無 Body 與空 JSON `{}`，不得因 Mobile WebKit 未送 Request Length 而由 IIS 回 `411`。成功時同一交易撤銷目前 Session並寫 `auth.logout` Audit，Commit 後清除 `gw_session` Cookie。
 
 ## 6. 登入相關 API
 
@@ -168,7 +180,7 @@ policy.WithOrigins("https://miglow.vip")
 | `GET /auth/line/callback` | Anonymous | 驗證 LINE、建立 Session、303 回前端 |
 | `GET /auth/session` | User | 回目前登入者、角色摘要、權限與到期時間 |
 | `GET /auth/csrf` | User | 取得 Session-bound CSRF Token |
-| `POST /auth/logout` | User + CSRF | 撤銷目前 Session並清 Cookie |
+| `POST /auth/logout` | User + CSRF | 接受無 Body／`{}`；撤銷目前 Session、寫 `auth.logout` Audit 並清 Cookie |
 | `POST /auth/logout-all` | User + CSRF | 撤銷此帳號全部 Session |
 
 登入錯誤以穩定代碼回前端；詳細原因只在結構化安全 Log：
@@ -222,6 +234,7 @@ public interface ILoginAttemptStore
 
 - Worker 每 15 分鐘刪除已過期 24 小時以上的 `line_login_attempts`；Audit 永久保留。
 - 指標：Start、Callback Success、User Denied、State Invalid／Replay、Token Failure、ID Token Failure、Session Created、Latency。
+- 集中式 Security Log 至少保留 180 日，必須能以 Request ID 精確查詢並在 Session 已驗證時回查內部 User ID；不得只寫前端 UUID 或單機短期 IIS 文字檔。
 - 同 IP／ASN 大量 State Invalid、Nonce Invalid、重放或登入尖峰觸發告警。
 - `/health/ready` 只確認 DB、Data Protection Key Ring 及必要設定可用；不可實際呼叫 LINE 或顯示 Secret。
 - LINE 暫時不可用時回可重試的友善頁，不建立半成品 User／Session。

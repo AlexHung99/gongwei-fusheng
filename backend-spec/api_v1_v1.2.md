@@ -1,6 +1,7 @@
 # 《宮闈浮生》HTTP API v1 清單
 
 > 版本：v1.2
+> 修訂：2026-08-24，明確 Request ID、已驗證帳號、Audit 與 Security Log 的關聯責任
 > 玩家前端：`https://miglow.vip/gongwei/`
 > Base URL：`https://gongwei-api.miglow.vip/api/v1`
 > 認證：LINE Login 後的 HttpOnly Session Cookie
@@ -44,11 +45,26 @@
 |---|---|
 | `Cookie` | 玩家 API 使用 `gw_session=<opaque token>`；IIS 管理後台使用獨立 `gw_admin_session`；不得存 JWT 於 Local Storage |
 | `X-CSRF-Token` | 玩家 SPA 的 Cookie 寫入 API 必填；管理後台同源表單改用 ASP.NET Core AntiForgery Token |
-| `X-Request-Id` | 可由前端送 UUID；未送則 API 產生並回傳 |
+| `X-Request-Id` | 可由前端送 UUID；後端只接受合法 UUID，缺少或不合法時由 API 重新產生；它只代表單次 HTTP Request，不是 User／Session／角色識別碼 |
 | `Idempotency-Key` | 表中標示 `Idem` 的端點必填，長度 16–100 |
 | `If-Match` | 更新具 `version` 的 Resource 時傳入 `"<version>"` |
 
-Production 玩家前台固定為 `https://miglow.vip/gongwei/`，API 固定為 `https://gongwei-api.miglow.vip`，兩者同屬 `miglow.vip`。玩家 SPA 的 `fetch` 必須使用 `credentials: "include"`；API CORS Production 僅允許 Origin `https://miglow.vip` 並回 `Access-Control-Allow-Credentials: true`。CORS Origin 不含 `/gongwei/` 路徑。`https://www.miglow.vip` 目前只作 301 導向，不列為正式寫入 Origin；若 DNS 政策改變才加入明確 Allowlist。不得使用 `AllowAnyOrigin` 搭配 Credentials。
+Production 玩家前台固定為 `https://miglow.vip/gongwei/`，API 固定為 `https://gongwei-api.miglow.vip`，兩者同屬 `miglow.vip`。玩家 SPA 的 `fetch` 必須使用 `credentials: "include"`；API CORS Production 僅允許 Origin `https://miglow.vip` 並回 `Access-Control-Allow-Credentials: true`。允許 Request Header 必須包含 `X-Request-Id`，Expose Header 必須包含 `X-Request-Id`。CORS Origin 不含 `/gongwei/` 路徑。`https://www.miglow.vip` 目前只作 301 導向，不列為正式寫入 Origin；若 DNS 政策改變才加入明確 Allowlist。不得使用 `AllowAnyOrigin` 搭配 Credentials。
+
+### 1.2A Request ID、帳號關聯與可追查性
+
+`Request ID` 是關聯一次 HTTP Request 的 Correlation ID，不能用來推導帳號，也不得寫入 `users` 當外鍵。後端必須完成以下責任：
+
+1. Request Correlation Middleware 在 Pipeline 前段解析 `X-Request-Id`；合法 UUID 才沿用，否則產生新的 UUID。後端決定的值必須寫入 Logging Scope、Response Header `X-Request-Id`，並在所有 Problem Details 的 `requestId` 回傳。
+2. Session Authentication 成功後，必須在同一 Logging Scope 加入內部 `userId`、`sessionId` 與目前 `characterId`（若有）。只記資料庫內部 UUID；不得記 Session Token、Cookie、CSRF Token、完整 LINE Sub 或 LINE Token。
+3. Request ID 本身不等於帳號。帳號對應來自驗證成功的 `user_sessions.user_id`。Session 無效、過期或尚未完成 LINE Callback 時，`userId` 可以是 `null`，不得猜測或由前端輸入帳號。
+4. 登入成功、登出成功、Logout All、Session 撤銷與停權必須寫永久 `audit_logs`，同筆保存 `actor_user_id`、`request_id`、Action、結果、來源與目標 Session 的資料庫 ID；不得保存 Session Token。既有 `audit_logs.actor_user_id/request_id` 即為權威關聯，不另在 `users` 新增 Request ID 欄位。
+5. Authentication／CSRF 在交易前失敗時，至少寫結構化 Security Log：`requestId,userId?,sessionId?,method,path,httpStatus,errorCode,occurredAt`。若 Session 已成功解析，失敗 Log 必須包含內部 `userId`；若尚未解析則為 `null`。不得因外部未驗證 Request 製造永久 Audit Flood。
+6. `GET /admin/audit-logs` 必須支援精確 `requestId` 篩選；客服收到前端 Request ID 後，先查 Audit，再查集中式 Security Log。Production 結構化 Log 不得只存在 IIS 單機短期文字檔，至少保留 180 日並限制 MGR／AUD／SA 查閱。
+7. 任一已驗證 Request 發生 4xx／5xx 時，Log 必須能以 `requestId` 找到內部 `userId`（若驗證已完成）、端點、HTTP Status 與穩定錯誤碼。這是上線驗收條件，不得只在前端產生 UUID 而後端不接收、不回傳或不記錄。
+
+前端顯示 Request ID 的目的只是提供查詢鍵；前端不得顯示、保存或推測 `userId`。同一個玩家的不同 HTTP Request 必須使用不同 Request ID。
+既有 Production DB 必須以正式 Migration 補上 `ix_audit_logs_request_id` Partial Index；不可只修改 `schema_v1.2.sql` 而未套用 Migration。
 
 ### 1.3 列表與時間
 
@@ -60,13 +76,14 @@ Production 玩家前台固定為 `https://miglow.vip/gongwei/`，API 固定為 `
 
 ### 1.4 標準錯誤
 
-使用 RFC Problem Details 擴充 `code`、`requestId`、`errors`。所有端點共通：
+使用 RFC Problem Details 擴充 `code`、`requestId`、`errors`。包含 Authentication、Authorization、CSRF、Rate Limit 與未處理例外在內的 API 錯誤，都必須使用 `application/problem+json`；`/api/v1` 不得回 IIS／Proxy HTML 錯誤頁或空白 401／403／500。所有端點共通：
 
 | HTTP | Code | 意義 |
 |---|---|---|
 | 400 | `VALIDATION_FAILED` | Request 格式、欄位或 Query 不合法 |
 | 401 | `AUTH_REQUIRED` / `SESSION_EXPIRED` | 未登入或 Session 過期 |
 | 403 | `FORBIDDEN` / `CHARACTER_STATE_FORBIDDEN` | 權限或角色狀態不允許 |
+| 403 | `CSRF_INVALID` | Session-bound CSRF Token 缺少、過期或不符；若 Session 已解析，Security Log 必須關聯內部 User ID |
 | 404 | `RESOURCE_NOT_FOUND` | 不存在或呼叫者無權得知其存在 |
 | 409 | `VERSION_CONFLICT` | `If-Match` 與目前版本不同 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 相同 Key 搭配不同 Request Body |
@@ -105,7 +122,7 @@ Production 玩家前台固定為 `https://miglow.vip/gongwei/`，API 固定為 `
 | `GET /meta` | Public | — | `ApiMetaDto` | API 版本、前端最低版本、維護狀態 |
 | `GET /auth/line/start?returnUrl=` | Public | Allowlist URL | `302 LINE` | 建立 10 分鐘 `line_login_attempts`、State／Nonce／PKCE；每 IP 每分鐘最多 20 次，IP/User-Agent 每 10 分鐘最多 40 次 |
 | `GET /auth/line/callback?code=&state=&error=&error_description=` | Public | LINE callback | `303 Frontend` | 僅供 LINE Redirect；消耗一次性 Attempt、建立 Session；不得把 Token 放網址 |
-| `POST /auth/logout` | User | — | `204` | 撤銷目前 Session |
+| `POST /auth/logout` | User | 無 Body 或空 JSON `{}` | `204` | 撤銷目前 Session；兩種格式皆須接受，不得由 IIS 回 `411`；同交易寫 `auth.logout` Audit |
 | `POST /auth/logout-all` | User | `ConfirmDto` | `204` | Idem；撤銷使用者全部 Session |
 | `GET /auth/csrf` | User | — | `CsrfTokenDto` | Token 綁定 Session |
 | `GET /me` | User | — | `MeDto` | 帳號、目前角色、權限、待辦摘要 |
@@ -511,7 +528,7 @@ v1.2 不提供人物關係分數、關係歷史、關係管理 API 或對應資�
 | `POST /admin/approvals/{id}/reject` | 對應管理角色/SA | `ApprovalDecisionRequest` | `ApprovalRequestDetailDto` | Idem |
 | `POST /admin/approvals/{id}/cancel` | Requester/SA | `ReasonRequest` | `ApprovalRequestDetailDto` | Pending 才可取消 |
 | `POST /admin/approvals/{id}/execute` | 對應管理角色/SA | — | `ApprovalExecutionResultDto` | Idem；需 Approved 且未過期；執行 Payload 指定的固定 Handler |
-| `GET /admin/audit-logs` | MGR/AUD | `action,actor,targetType,targetId,from,to,cursor,limit` | `CursorPage<AuditLogDto>` | IIS 後台稽核紀錄頁；唯讀、永久保存，不提供更新／刪除 API |
+| `GET /admin/audit-logs` | MGR/AUD | `requestId,action,actor,targetType,targetId,from,to,cursor,limit` | `CursorPage<AuditLogDto>` | `requestId` 為精確比對；IIS 後台稽核紀錄頁唯讀、永久保存，不提供更新／刪除 API |
 | `GET /admin/audit-logs/{id}` | MGR/AUD | — | `AuditLogDetailDto` | 顯示操作者、管理角色、理由、前後值、時間、Request ID 與來源 IP |
 | `GET /admin/jobs` | SA/AUD | Filters | `ScheduledJobDto[]` | — |
 | `GET /admin/jobs/{id}/runs` | SA/AUD | `cursor,limit` | `CursorPage<JobRunDto>` | — |

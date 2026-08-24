@@ -1303,6 +1303,8 @@ CREATE TRIGGER tr_event_posts_no_delete
 
 CREATE INDEX ix_audit_logs_target ON game.audit_logs(target_type, target_id, occurred_at DESC);
 CREATE INDEX ix_audit_logs_actor ON game.audit_logs(actor_user_id, occurred_at DESC);
+CREATE INDEX ix_audit_logs_request_id ON game.audit_logs(request_id)
+    WHERE request_id IS NOT NULL;
 
 CREATE TRIGGER tr_audit_logs_immutable
     BEFORE UPDATE OR DELETE ON game.audit_logs
