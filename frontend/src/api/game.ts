@@ -54,7 +54,6 @@ export type CharacterApplicationPayload = {
   familyName: string;
   givenName: string;
   courtesyName: string | null;
-  birthDateLabel: string | null;
   age: number;
   appearance: string;
   biography: string;
@@ -69,6 +68,7 @@ export type CharacterApplicationPayload = {
 };
 export type CharacterApplicationDto = CharacterApplicationPayload & {
   id: string;
+  birthDateLabel: string | null;
   status: "draft" | "submitted" | "needsRevision" | "needs_revision" | "approved" | "rejected" | "cancelled";
   version: number;
   reviewNote?: string | null;

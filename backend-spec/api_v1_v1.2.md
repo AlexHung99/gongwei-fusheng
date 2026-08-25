@@ -104,7 +104,7 @@ Production 玩家前台固定為 `https://miglow.vip/gongwei/`，API 固定為 `
   "code": "VALIDATION_FAILED",
   "requestId": "req_8C2F",
   "errors": {
-    "biography": ["自介至少需要 200 字"]
+    "givenName": ["名字需為 1–30 字"]
   }
 }
 ```
@@ -555,22 +555,21 @@ Approval `execute` 不接受任意 SQL、Type 名稱或自由 Payload；只能�
   "familyName": "沈",
   "givenName": "知微",
   "courtesyName": null,
-  "birthDateLabel": "永熙七年三月初七",
   "age": 17,
-  "appearance": "至少六十字……",
-  "biography": "...",
-  "personality": "...",
-  "strengths": "至少五十字……",
-  "weaknesses": "至少五十字……",
-  "likes": "至少五十字……",
-  "dislikes": "至少五十字……",
+  "appearance": "",
+  "biography": "",
+  "personality": "",
+  "strengths": "",
+  "weaknesses": "",
+  "likes": "",
+  "dislikes": "",
   "portraitId": "uuid-or-null",
   "playerPortraitSubmissionId": "uuid-or-null",
   "formData": {}
 }
 ```
 
-規則：Draft 允許欄位不完整並可重複儲存；Submit 時才完整驗證。角色性別不接受獨立輸入，由 `role` 唯一推導：`consort/princess → female`、`prince → male`，避免 Role 與性別不一致。宮妃年齡 15～18；皇嗣姓氏固定「蕭」、年齡固定 0，待生時 `birthDateLabel` 可為 `null`，實際生辰由出生交易寫入。容貌至少 60 字；性格、擅、不擅、喜、不喜各至少 50 字；自介至少 200 字。`portraitId` 與 `playerPortraitSubmissionId` 提交時必須且只能提供一個。後端查立繪或上傳圖的 Owner、Role 與審核狀態；建立正式角色前上傳圖必須 Approved。所有文字移除首尾空白、拒絕 HTML。評分權重為字數 35%、文筆 50%、邏輯 15%。
+規則：Draft 允許欄位不完整並可重複儲存；Submit 時驗證姓名、角色類型、年齡與立繪。角色性別不接受獨立輸入，由 `role` 唯一推導：`consort/princess → female`、`prince → male`，避免 Role 與性別不一致。宮妃年齡 15～18；皇嗣姓氏固定「蕭」、年齡固定 0。建角 Request 不再顯示或採用 `birthDateLabel`；為相容舊版 Client，即使收到也必須忽略並儲存為 `null`，實際生辰僅能由皇嗣出生交易寫入。人物設定欄位 `appearance`、`biography`、`personality`、`strengths`、`weaknesses`、`likes`、`dislikes` 全部選填；Client 可以省略，Server 需將省略或空白值正規化為空字串，且不設最低字數。前台及後台標籤將 `weaknesses` 顯示為「不擅」、`dislikes` 顯示為「不喜」。`portraitId` 與 `playerPortraitSubmissionId` 提交時必須且只能提供一個。後端查立繪或上傳圖的 Owner、Role 與審核狀態；建立正式角色前上傳圖必須 Approved。所有文字移除首尾空白、拒絕 HTML；欄位長度仍不得超過資料庫定義上限。既有資料庫須套用 `migration_v1.2_optional_character_profile_fields.sql` 或等效 EF Migration。
 
 ```json
 // UpdatePortraitCropRequest；座標皆相對於原圖，範圍 0–1

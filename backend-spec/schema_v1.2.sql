@@ -240,13 +240,6 @@ CREATE TABLE game.character_applications (
     CHECK (status = 'draft' OR char_length(btrim(given_name)) BETWEEN 1 AND 30),
     CHECK (status = 'draft' OR ((portrait_id IS NOT NULL)::integer +
            (player_portrait_submission_id IS NOT NULL)::integer = 1)),
-    CHECK (status = 'draft' OR char_length(appearance) >= 60),
-    CHECK (status = 'draft' OR char_length(personality) >= 50),
-    CHECK (status = 'draft' OR char_length(strengths) >= 50),
-    CHECK (status = 'draft' OR char_length(weaknesses) >= 50),
-    CHECK (status = 'draft' OR char_length(likes) >= 50),
-    CHECK (status = 'draft' OR char_length(dislikes) >= 50),
-    CHECK (status = 'draft' OR char_length(biography) >= 200),
     CHECK (status = 'draft' OR
            (role = 'consort' AND age BETWEEN 15 AND 18 AND char_length(btrim(family_name)) > 0) OR
            (role IN ('prince', 'princess') AND age = 0 AND family_name = '蕭')),

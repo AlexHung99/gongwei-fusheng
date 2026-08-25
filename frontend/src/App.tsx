@@ -441,14 +441,14 @@ function ApiStatus({ phase, unavailable, onRetry }: { phase: "loading" | "guest"
 }
 
 const emptyApplication = (): CharacterApplicationPayload => ({
-  role: "consort", familyName: "", givenName: "", courtesyName: null, birthDateLabel: "", age: 17,
+  role: "consort", familyName: "", givenName: "", courtesyName: null, age: 17,
   appearance: "", biography: "", personality: "", strengths: "", weaknesses: "", likes: "", dislikes: "",
   portraitId: null, playerPortraitSubmissionId: null, formData: {},
 });
 
 const payloadFromApplication = (application: CharacterApplicationDto): CharacterApplicationPayload => ({
   role: application.role, familyName: application.familyName, givenName: application.givenName,
-  courtesyName: application.courtesyName, birthDateLabel: application.birthDateLabel, age: application.age,
+  courtesyName: application.courtesyName, age: application.age,
   appearance: application.appearance, biography: application.biography, personality: application.personality,
   strengths: application.strengths, weaknesses: application.weaknesses, likes: application.likes, dislikes: application.dislikes,
   portraitId: application.portraitId, playerPortraitSubmissionId: application.playerPortraitSubmissionId, formData: application.formData ?? {},
@@ -489,7 +489,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
 
   const changeRole = (role: CharacterRole) => {
     const royal = role !== "consort";
-    setForm((value) => ({ ...value, role, familyName: royal ? "蕭" : value.familyName === "蕭" ? "" : value.familyName, age: royal ? 0 : 17, birthDateLabel: royal ? null : value.birthDateLabel ?? "", portraitId: null, playerPortraitSubmissionId: null }));
+    setForm((value) => ({ ...value, role, familyName: royal ? "蕭" : value.familyName === "蕭" ? "" : value.familyName, age: royal ? 0 : 17, portraitId: null, playerPortraitSubmissionId: null }));
     setCustomPreview("");
     setErrors([]);
   };
@@ -498,9 +498,6 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
     const validation: string[] = [];
     if (!form.familyName.trim() || !form.givenName.trim()) validation.push("請填寫完整姓名。");
     if (form.role === "consort" && (form.age < 15 || form.age > 18)) validation.push("嬪妃年齡需為 15～18 歲。");
-    if (form.appearance.trim().length < 60) validation.push("容貌描述至少需要 60 字。");
-    if (form.biography.trim().length < 200) validation.push("人物自介至少需要 200 字。");
-    (["personality", "strengths", "weaknesses", "likes", "dislikes"] as const).forEach((field) => { if (form[field].trim().length < 50) validation.push(`${({ personality: "性格", strengths: "擅長", weaknesses: "不擅長", likes: "喜歡", dislikes: "不喜歡" })[field]}至少需要 50 字。`); });
     if (Boolean(form.portraitId) === Boolean(form.playerPortraitSubmissionId)) validation.push("請選擇一張官方立繪，或上傳一張自訂立繪。");
     setErrors(validation);
     return validation.length === 0;
@@ -554,7 +551,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
     <section className="application-form section-card">
       <header><div><span>01</span><h2>角色身份</h2><p>角色性別由身份決定；皇子與帝姬建立後進入待生池。</p></div><em>{current ? `草稿 v${current.version}` : "尚未儲存"}</em></header>
       <div className="role-options">{([{ id: "consort", label: "嬪妃", note: "女性・年齡 15～18" }, { id: "prince", label: "皇子", note: "男性・待生皇嗣" }, { id: "princess", label: "帝姬", note: "女性・待生皇嗣" }] as const).map((role) => <button type="button" key={role.id} className={form.role === role.id ? "active" : ""} onClick={() => changeRole(role.id)}><Crown size={18} /><span><strong>{role.label}</strong><small>{role.note}</small></span></button>)}</div>
-      <div className="application-fields three"><label><span>姓氏</span><input value={form.familyName} disabled={form.role !== "consort"} onChange={(event) => setText("familyName", event.target.value)} maxLength={10} /></label><label><span>名字</span><input value={form.givenName} onChange={(event) => setText("givenName", event.target.value)} maxLength={20} /></label><label><span>表字（選填）</span><input value={form.courtesyName ?? ""} onChange={(event) => setText("courtesyName", event.target.value || null)} maxLength={20} /></label><label><span>年齡</span><input type="number" min={form.role === "consort" ? 15 : 0} max={form.role === "consort" ? 18 : 0} disabled={form.role !== "consort"} value={form.age} onChange={(event) => setText("age", Number(event.target.value))} /></label><label className="wide"><span>生辰{form.role !== "consort" && "（出生時由系統寫入）"}</span><input value={form.birthDateLabel ?? ""} disabled={form.role !== "consort"} onChange={(event) => setText("birthDateLabel", event.target.value)} placeholder="例如：永熙七年三月初七" /></label></div>
+      <div className="application-fields three"><label><span>姓氏</span><input value={form.familyName} disabled={form.role !== "consort"} onChange={(event) => setText("familyName", event.target.value)} maxLength={10} /></label><label><span>名字</span><input value={form.givenName} onChange={(event) => setText("givenName", event.target.value)} maxLength={20} /></label><label><span>表字（選填）</span><input value={form.courtesyName ?? ""} onChange={(event) => setText("courtesyName", event.target.value || null)} maxLength={20} /></label><label><span>年齡</span><input type="number" min={form.role === "consort" ? 15 : 0} max={form.role === "consort" ? 18 : 0} disabled={form.role !== "consort"} value={form.age} onChange={(event) => setText("age", Number(event.target.value))} /></label></div>
     </section>
     <section className="application-form section-card">
       <header><div><span>02</span><h2>人物立繪</h2><p>官方立繪可直接選擇；自訂圖片需先經管理員審核。</p></div></header>
@@ -562,8 +559,8 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
       <label className={`application-upload ${form.playerPortraitSubmissionId ? "active" : ""}`}><UploadCloud size={24} /><span><strong>{form.playerPortraitSubmissionId ? "自訂立繪已上傳" : "上傳自訂人物圖片"}</strong><small>JPEG、PNG、WebP・最大 8 MB・至少 600 × 800 px</small></span>{customPreview && <img src={customPreview} alt="自訂立繪預覽" />}<input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={(event) => void uploadCustomPortrait(event.target.files?.[0])} /></label>
     </section>
     <section className="application-form section-card">
-      <header><div><span>03</span><h2>人物設定</h2><p>草稿可不完整；送審時會檢查最低字數。</p></div></header>
-      <div className="application-fields textareas"><label><span>容貌描述 <em>{form.appearance.length} / 60 字以上</em></span><textarea value={form.appearance} onChange={(event) => setText("appearance", event.target.value)} /></label><label><span>人物自介 <em>{form.biography.length} / 200 字以上</em></span><textarea className="long" value={form.biography} onChange={(event) => setText("biography", event.target.value)} /></label>{([{ field: "personality", label: "性格" }, { field: "strengths", label: "擅長" }, { field: "weaknesses", label: "不擅長" }, { field: "likes", label: "喜歡" }, { field: "dislikes", label: "不喜歡" }] as const).map((item) => <label key={item.field}><span>{item.label} <em>{form[item.field].length} / 50 字以上</em></span><textarea value={form[item.field]} onChange={(event) => setText(item.field, event.target.value)} /></label>)}</div>
+      <header><div><span>03</span><h2>人物設定</h2><p>以下欄位皆為選填，可依人物設定自由補充。</p></div></header>
+      <div className="application-fields textareas"><label><span>容貌描述 <em>選填・{form.appearance.length} 字</em></span><textarea value={form.appearance} onChange={(event) => setText("appearance", event.target.value)} /></label><label><span>人物自介 <em>選填・{form.biography.length} 字</em></span><textarea className="long" value={form.biography} onChange={(event) => setText("biography", event.target.value)} /></label>{([{ field: "personality", label: "性格" }, { field: "strengths", label: "擅長" }, { field: "weaknesses", label: "不擅" }, { field: "likes", label: "喜歡" }, { field: "dislikes", label: "不喜" }] as const).map((item) => <label key={item.field}><span>{item.label} <em>選填・{form[item.field].length} 字</em></span><textarea value={form[item.field]} onChange={(event) => setText(item.field, event.target.value)} /></label>)}</div>
     </section>
     {errors.length > 0 && <section className="application-errors"><AlertCircle size={18} /><div><strong>請確認下列項目</strong>{errors.map((error) => <p key={error}>{error}</p>)}</div></section>}
     <footer className="application-actions"><span><ShieldCheck size={17} />送審後須等待管理人員核准，期間不可重複建立其他角色。</span><div><button type="button" className="ghost-button" disabled={saving || submitting || !apiAvailable} onClick={() => void saveDraft()}>{saving ? "儲存中…" : "儲存草稿"}</button><button type="button" className="primary-button" disabled={saving || submitting || !apiAvailable} onClick={() => void submit()}>{submitting ? "申請中…" : "申請"}<Send size={16} /></button></div></footer>
