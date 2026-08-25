@@ -79,6 +79,8 @@ export type PortraitSummaryDto = {
   role: CharacterRole;
   displayName?: string;
   name?: string;
+  assetUrl?: string;
+  imageUrl?: string;
   portraitUrl?: string;
   url?: string;
   thumbnailUrl?: string;

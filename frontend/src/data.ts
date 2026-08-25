@@ -267,6 +267,12 @@ export const portraits: PortraitOption[] = [
   { id: "consort", title: "嬪妃", name: "沈知微", src: "./assets/portrait-consort.webp", note: "從六品・婕妤", source: "official" },
   { id: "prince", title: "皇子", name: "蕭景珩", src: "./assets/portrait-prince.webp", note: "待生皇嗣", source: "official" },
   { id: "princess", title: "帝姬", name: "蕭令儀", src: "./assets/portrait-princess.webp", note: "待生皇嗣", source: "official" },
+  { id: "consort-2", title: "嬪妃", name: "青玉蘭", src: "./assets/portrait-consort-2.webp", note: "官方立繪・青玉蘭", source: "official" },
+  { id: "consort-3", title: "嬪妃", name: "暮荷", src: "./assets/portrait-consort-3.webp", note: "官方立繪・暮荷", source: "official" },
+  { id: "prince-2", title: "皇子", name: "雲嶺", src: "./assets/portrait-prince-2.webp", note: "官方立繪・雲嶺", source: "official" },
+  { id: "prince-3", title: "皇子", name: "丹闕", src: "./assets/portrait-prince-3.webp", note: "官方立繪・丹闕", source: "official" },
+  { id: "princess-2", title: "帝姬", name: "霽梅", src: "./assets/portrait-princess-2.webp", note: "官方立繪・霽梅", source: "official" },
+  { id: "princess-3", title: "帝姬", name: "春棠", src: "./assets/portrait-princess-3.webp", note: "官方立繪・春棠", source: "official" },
 ];
 
 export const chronicle: ChronicleEntry[] = [
