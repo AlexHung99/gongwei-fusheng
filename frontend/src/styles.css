@@ -324,3 +324,14 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(166, 78, 
 @media (max-width:800px) {
   .application-form { padding:0 15px 18px; }.application-form > header { margin:0 -15px 17px; padding:15px; }.role-options { grid-template-columns:1fr; }.application-fields.three,.application-fields.textareas { grid-template-columns:1fr; }.application-fields label.wide { grid-column:auto; }.application-portraits { grid-template-columns:repeat(2,1fr); }.application-portraits button { min-height:175px; }.application-portraits img { height:140px; }.application-actions { align-items:stretch; flex-direction:column; bottom:74px; }.application-actions > div { display:grid; grid-template-columns:1fr 1fr; }.application-actions button { justify-content:center; }.application-status { padding:20px; }.application-status > i { width:44px; height:44px; }
 }
+
+/* Character application actions belong to the end of the form, not a floating toolbar. */
+.application-actions {
+  position: static;
+  bottom: auto;
+  z-index: auto;
+  margin: 16px 0 24px;
+  background: #fffdf8;
+  box-shadow: none;
+  backdrop-filter: none;
+}
