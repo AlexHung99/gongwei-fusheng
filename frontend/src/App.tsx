@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { chronicle, events, mapPlaces, marketItems, npcs, palaceActivities, playerProfiles, portraits, sceneActivities, staffMembers, type MarketItem, type NpcProfile, type PortraitOption, type RouteKey, type SceneActivity } from "./data";
-import { ApiError, logout, startLineLogin } from "./api/client";
+import { ApiError, isAuthRequiredError, logout, startLineLogin } from "./api/client";
 import { useGameApi, type CharacterApplicationDto, type CharacterApplicationPayload, type CharacterRole, type CharacterStatsDto, type ChronicleDto, type NpcDto, type PlayerDto, type PortraitSummaryDto, type StaffDto } from "./api/game";
 
 function BrandMark() {
@@ -116,9 +116,12 @@ const loginErrorMessage = (code: string) => ({
   AUTH_RATE_LIMITED: "登入嘗試過於頻繁，請稍後再試。",
 } as Record<string, string>)[code] ?? `登入未完成（${code}）。`;
 
-const apiMessage = (error: unknown) => error instanceof ApiError
-  ? `${error.message}（${error.code}${error.requestId ? `・${error.requestId}` : ""}）`
-  : "目前無法連線到遊戲伺服器，請稍後再試。";
+const apiMessage = (error: unknown): string | null => {
+  if (isAuthRequiredError(error)) return null;
+  return error instanceof ApiError
+    ? `${error.message}（${error.code}${error.requestId ? `・${error.requestId}` : ""}）`
+    : "目前無法連線到遊戲伺服器，請稍後再試。";
+};
 
 const mapApiPlayer = (player: PlayerDto) => ({
   id: player.characterId, name: player.displayName, title: player.rankName || player.role,
@@ -209,8 +212,23 @@ function App() {
   }, [toast]);
 
   const handleLogout = () => void logout()
-    .then(() => window.location.assign(`${window.location.pathname}#/home`))
-    .catch((error) => setToast(apiMessage(error)));
+    .then(() => {
+      gameApi.clearSession();
+      setToast("");
+      window.location.hash = "#/home";
+      setRouteState("home");
+      window.scrollTo({ top: 0 });
+    })
+    .catch((error) => {
+      if (isAuthRequiredError(error)) {
+        gameApi.clearSession();
+        window.location.hash = "#/home";
+        setRouteState("home");
+        return;
+      }
+      const message = apiMessage(error);
+      if (message) setToast(message);
+    });
 
   if (!api.me) {
     return <LoginGate
@@ -248,7 +266,7 @@ function App() {
       return;
     }
     try { await gameApi.purchase(item.apiId); setToast(`已購買「${item.name}」，正在更新銀兩與庫存。`); await gameApi.refresh(); }
-    catch (error) { setToast(apiMessage(error)); }
+    catch (error) { const message = apiMessage(error); if (message) setToast(message); }
   };
 
   const useInventoryItem = async (item: MarketItem) => {
@@ -256,7 +274,7 @@ function App() {
     if (!api.me) { setToast("請先使用 LINE 登入，再使用人物道具。"); return; }
     if (!entry?.apiId) { setToast("此為示範庫存，後端尚未提供 Entry，未扣除道具。"); return; }
     try { await gameApi.useItem(entry.apiId); setToast(`已送出「${item.name}」使用要求，正在更新歷程。`); await gameApi.refresh(); }
-    catch (error) { setToast(apiMessage(error)); }
+    catch (error) { const message = apiMessage(error); if (message) setToast(message); }
   };
 
   return (
@@ -439,7 +457,7 @@ const payloadFromApplication = (application: CharacterApplicationDto): Character
 function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadPortrait, saveApplication, submitApplication, refresh, onToast }: {
   current: CharacterApplicationDto | null;
   apiAvailable: boolean;
-  getPortraits: (role: CharacterRole) => Promise<PortraitSummaryDto[]>;
+  getPortraits: (role: CharacterRole, signal?: AbortSignal) => Promise<PortraitSummaryDto[]>;
   uploadPortrait: (file: File, role?: string) => Promise<{ id: string; previewUrl?: string; url?: string }>;
   saveApplication: (payload: CharacterApplicationPayload, current?: CharacterApplicationDto | null) => Promise<CharacterApplicationDto>;
   submitApplication: (application: CharacterApplicationDto) => Promise<CharacterApplicationDto>;
@@ -460,10 +478,13 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
   }, [current]);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
     setPortraitsLoading(true);
-    getPortraits(form.role).then((items) => { if (active) setPortraitsList(items); }).catch(() => { if (active) setPortraitsList([]); }).finally(() => { if (active) setPortraitsLoading(false); });
-    return () => { active = false; };
+    getPortraits(form.role, controller.signal)
+      .then((items) => setPortraitsList(items))
+      .catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError") && !isAuthRequiredError(error)) setPortraitsList([]); })
+      .finally(() => { if (!controller.signal.aborted) setPortraitsLoading(false); });
+    return () => controller.abort();
   }, [form.role, getPortraits]);
 
   const changeRole = (role: CharacterRole) => {
@@ -488,7 +509,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
     if (!apiAvailable) { onToast("建角申請 API 尚未開放，草稿沒有送出。"); return null; }
     setSaving(true); setErrors([]);
     try { const saved = await saveApplication(form, current); onToast("建角草稿已儲存。"); await refresh(); return saved; }
-    catch (error) { setErrors([apiMessage(error)]); return null; }
+    catch (error) { const message = apiMessage(error); if (message) setErrors([message]); return null; }
     finally { setSaving(false); }
   };
   const submit = async () => {
@@ -499,7 +520,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
       await submitApplication(saved);
       onToast("角色申請已送出，請等待管理人員審核。");
       await refresh();
-    } catch (error) { setErrors([apiMessage(error)]); }
+    } catch (error) { const message = apiMessage(error); if (message) setErrors([message]); }
     finally { setSubmitting(false); }
   };
   const uploadCustomPortrait = async (file?: File) => {
@@ -511,7 +532,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
       setForm((value) => ({ ...value, portraitId: null, playerPortraitSubmissionId: uploaded.id }));
       setCustomPreview(uploaded.previewUrl ?? uploaded.url ?? URL.createObjectURL(file));
       onToast("自訂立繪已上傳，送審前仍可更換。");
-    } catch (error) { setErrors([apiMessage(error)]); }
+    } catch (error) { const message = apiMessage(error); if (message) setErrors([message]); }
     finally { setSaving(false); }
   };
 
@@ -1077,7 +1098,8 @@ function PortraitPicker({ selected, onClose, onSelect, onUpload }: { selected: s
       moderationStatus: "pending",
       });
     } catch (uploadError) {
-      setError(apiMessage(uploadError));
+      const message = apiMessage(uploadError);
+      if (message) setError(message);
     } finally {
       setSubmitting(false);
     }
