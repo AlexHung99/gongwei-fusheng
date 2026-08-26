@@ -333,7 +333,7 @@ function App() {
           {route === "map" && <MapView navigate={navigate} onToast={setToast} npcItems={displayNpcs} staffItems={displayStaff} />}
           {route === "events" && <EventsView onToast={setToast} activities={api.chronicle.length ? displayChronicle.map((entry, index) => ({ id: `api-${index}`, time: entry.date, place: entry.place, player: api.me?.character?.displayName ?? "我的人物", playerTitle: api.me?.character?.rank?.name ?? "", action: entry.title, detail: entry.detail, cost: entry.changes.filter((change) => change.delta < 0).map((change) => `${change.label} ${change.delta}`).join("、") || "無", results: entry.changes.filter((change) => change.delta >= 0).map((change) => `${change.label} +${change.delta}`), tone: "jade" })) : palaceActivities} players={displayPlayers} />}
           {route === "players" && <PlayerDirectoryView players={displayPlayers} />}
-          {route === "application" && <CharacterApplicationView current={api.application} apiAvailable={api.applicationApiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} refresh={gameApi.refresh} onToast={setToast} />}
+          {route === "application" && <CharacterApplicationView current={api.application} apiAvailable={api.applicationApiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} cancelApplication={gameApi.cancelApplication} refresh={gameApi.refresh} onToast={setToast} />}
           {route === "character" && <CharacterView portrait={displayPortrait} balance={displayBalance} inventory={displayInventory} market={displayMarketItems} statsDto={liveStats} history={displayChronicle} openPicker={() => setPortraitPickerOpen(true)} navigate={navigate} onUse={useInventoryItem} />}
           {route === "market" && <MarketView balance={displayBalance} items={displayMarketItems} onPurchase={purchaseItem} />}
           {route === "more" && <MoreView navigate={navigate} onToast={setToast} />}
@@ -427,7 +427,7 @@ function CharacterAccessGate({ displayName, application, apiAvailable, gameApi, 
         <div className={waiting ? "active" : "pending"}><span>3</span><strong>管理員審核</strong><small>{waiting ? "等待核准中" : "送審後進入"}</small></div>
       </section>
       <div className="onboarding-lock-note"><LockKeyhole size={16} /><span><strong>遊戲功能尚未開放</strong><small>通過審核並建立正式角色後，系統才會載入宮城、事件、玩家名冊與宮市。</small></span></div>
-      <CharacterApplicationView current={application} apiAvailable={apiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} refresh={gameApi.refresh} onToast={onToast} />
+      <CharacterApplicationView current={application} apiAvailable={apiAvailable} getPortraits={gameApi.getPortraits} uploadPortrait={gameApi.uploadPortrait} saveApplication={gameApi.saveApplication} submitApplication={gameApi.submitApplication} cancelApplication={gameApi.cancelApplication} refresh={gameApi.refresh} onToast={onToast} />
     </main>
     {toast && <div className="toast"><Sparkles size={17} />{toast}</div>}
   </div>;
@@ -447,20 +447,21 @@ const emptyApplication = (): CharacterApplicationPayload => ({
 });
 
 const payloadFromApplication = (application: CharacterApplicationDto): CharacterApplicationPayload => ({
-  role: application.role, familyName: application.familyName, givenName: application.givenName,
+  role: application.role, familyName: application.familyName ?? "", givenName: application.givenName ?? "",
   courtesyName: application.courtesyName, age: application.age,
-  appearance: application.appearance, biography: application.biography, personality: application.personality,
-  strengths: application.strengths, weaknesses: application.weaknesses, likes: application.likes, dislikes: application.dislikes,
+  appearance: application.appearance ?? "", biography: application.biography ?? "", personality: application.personality ?? "",
+  strengths: application.strengths ?? "", weaknesses: application.weaknesses ?? "", likes: application.likes ?? "", dislikes: application.dislikes ?? "",
   portraitId: application.portraitId, playerPortraitSubmissionId: application.playerPortraitSubmissionId, formData: application.formData ?? {},
 });
 
-function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadPortrait, saveApplication, submitApplication, refresh, onToast }: {
+function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadPortrait, saveApplication, submitApplication, cancelApplication, refresh, onToast }: {
   current: CharacterApplicationDto | null;
   apiAvailable: boolean;
   getPortraits: (role: CharacterRole, signal?: AbortSignal) => Promise<PortraitSummaryDto[]>;
   uploadPortrait: (file: File, role?: string) => Promise<{ id: string; previewUrl?: string; url?: string }>;
   saveApplication: (payload: CharacterApplicationPayload, current?: CharacterApplicationDto | null) => Promise<CharacterApplicationDto>;
   submitApplication: (application: CharacterApplicationDto) => Promise<CharacterApplicationDto>;
+  cancelApplication: (application: CharacterApplicationDto) => Promise<CharacterApplicationDto>;
   refresh: () => Promise<void>;
   onToast: (message: string) => void;
 }) {
@@ -470,6 +471,7 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
   const [customPreview, setCustomPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const editable = !current || ["draft", "needsRevision", "needs_revision"].includes(current.status);
 
@@ -532,6 +534,17 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
     } catch (error) { const message = apiMessage(error); if (message) setErrors([message]); }
     finally { setSaving(false); }
   };
+  const cancelAndEdit = async () => {
+    if (!current || current.status !== "submitted") return;
+    if (!window.confirm("確定要取消這次送審嗎？人物資料會保留，並回到可編輯狀態。")) return;
+    setCancelling(true); setErrors([]);
+    try {
+      await cancelApplication(current);
+      onToast("已取消送審，原有資料已保留，可以繼續編輯。");
+      await refresh();
+    } catch (error) { const message = apiMessage(error); if (message) setErrors([message]); }
+    finally { setCancelling(false); }
+  };
 
   if (current && !editable) {
     const statusCopy: Record<string, { title: string; detail: string }> = {
@@ -541,7 +554,14 @@ function CharacterApplicationView({ current, apiAvailable, getPortraits, uploadP
       cancelled: { title: "申請已取消", detail: "目前沒有進行中的角色申請。" },
     };
     const copy = statusCopy[current.status] ?? { title: "申請處理中", detail: "目前申請狀態由管理人員處理中。" };
-    return <div className="application-page"><PageHeading eyebrow="CHARACTER APPLICATION" title="建立角色申請" description="一個 LINE 帳號同時只能擁有一個進行中的角色。" /><section className="application-status section-card"><i><CheckCircle2 size={28} /></i><span><small>{current.status.toUpperCase()}</small><h2>{copy.title}</h2><p>{copy.detail}</p>{current.reviewNote && <blockquote>{current.reviewNote}</blockquote>}<strong>{current.familyName}{current.givenName}・{current.role === "consort" ? "嬪妃" : current.role === "prince" ? "皇子" : "帝姬"}</strong><button type="button" className="status-refresh-button" onClick={() => void refresh()}>重新檢查審核狀態</button></span></section></div>;
+    const roleLabel = current.role === "consort" ? "嬪妃" : current.role === "prince" ? "皇子" : "帝姬";
+    const officialPortrait = portraitsList.find((portrait) => portrait.id === current.portraitId);
+    const portraitUrl = officialPortrait?.thumbnailUrl ?? officialPortrait?.assetUrl ?? officialPortrait?.imageUrl ?? officialPortrait?.portraitUrl ?? officialPortrait?.url;
+    const details = [
+      ["身份", roleLabel], ["姓名", `${current.familyName ?? ""}${current.givenName ?? ""}`], ["表字", current.courtesyName || "未填"], ["年齡", current.role === "consort" ? `${current.age} 歲` : "待生"],
+      ["容貌描述", current.appearance || "未填"], ["人物自介", current.biography || "未填"], ["性格", current.personality || "未填"], ["擅長", current.strengths || "未填"], ["不擅", current.weaknesses || "未填"], ["喜歡", current.likes || "未填"], ["不喜", current.dislikes || "未填"],
+    ];
+    return <div className="application-page"><PageHeading eyebrow="CHARACTER APPLICATION" title="角色申請資料" description="送審期間仍可查看完整人物設定；取消送審後會保留資料並回到編輯畫面。" /><section className="application-status section-card"><i><CheckCircle2 size={28} /></i><span><small>{current.status.toUpperCase()}</small><h2>{copy.title}</h2><p>{copy.detail}</p>{current.reviewNote && <blockquote>{current.reviewNote}</blockquote>}<strong>{current.familyName}{current.givenName}・{roleLabel}</strong><div className="application-status-actions"><button type="button" className="status-refresh-button" onClick={() => void refresh()}>重新檢查審核狀態</button>{current.status === "submitted" && <button type="button" className="status-cancel-button" disabled={cancelling} onClick={() => void cancelAndEdit()}>{cancelling ? "取消中…" : "取消申請並編輯"}</button>}</div></span></section><section className="application-detail section-card">{portraitUrl ? <img src={portraitUrl} alt={`${current.familyName}${current.givenName}申請立繪`} /> : <div className="application-detail-portrait"><ImageIcon size={25} /><span>{current.playerPortraitSubmissionId ? "自訂立繪審核中" : "立繪載入中"}</span></div>}<dl>{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>{errors.length > 0 && <section className="application-errors"><AlertCircle size={18} /><div><strong>無法取消申請</strong>{errors.map((error) => <p key={error}>{error}</p>)}</div></section>}</div>;
   }
 
   return <div className="application-page">

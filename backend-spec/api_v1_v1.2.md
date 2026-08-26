@@ -198,7 +198,7 @@ Auth 穩定錯誤碼：`LINE_ACCESS_DENIED`、`AUTH_STATE_INVALID`、`AUTH_STATE
 | `POST /character-applications` | User | `CreateApplicationRequest` | `201 CharacterApplicationDto` | Idem；`OPEN_APPLICATION_EXISTS`、`CURRENT_CHARACTER_EXISTS` |
 | `PATCH /character-applications/{id}` | User | `UpdateApplicationRequest` | `CharacterApplicationDto` | 僅 Draft/NeedsRevision；`If-Match` |
 | `POST /character-applications/{id}/submit` | User | `SubmitApplicationRequest` | `CharacterApplicationDto` | Idem；保存 Revision Snapshot |
-| `POST /character-applications/{id}/cancel` | User | `ReasonRequest` | `CharacterApplicationDto` | Idem；Approved 不可取消 |
+| `POST /character-applications/{id}/cancel` | User | `{expectedVersion,reason?}` | `CharacterApplicationDto` | Idem；Submitted 且尚未完成審核時可取消送審；保留全部資料並回到 Draft，供玩家再次編輯及送審 |
 | `GET /characters/me` | User | — | `MyCharacterDto` / `204` | WaitingBirth、Paused、Dead 均可查看 |
 | `GET /players` | User | `q,status,cursor,limit` | `CursorPage<PlayerSummaryDto>` | 依模糊 `lastSeenAt DESC,id` 排序；只列目前角色，不揭露歷代角色連結 |
 | `GET /characters/{characterId}/public` | User | — | `PublicCharacterDto` | 依可見性遮蔽資料 |

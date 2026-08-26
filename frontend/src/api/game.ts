@@ -240,6 +240,7 @@ export function useGameApi() {
     ? apiRequest<CharacterApplicationDto>(`/character-applications/${encodeURIComponent(current.id)}`, { method: "PATCH", headers: { "If-Match": `"${current.version}"` }, body: JSON.stringify(payload) })
     : apiRequest<CharacterApplicationDto>("/character-applications", { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify(payload) });
   const submitApplication = async (application: CharacterApplicationDto) => apiRequest<CharacterApplicationDto>(`/character-applications/${encodeURIComponent(application.id)}/submit`, { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify({ expectedVersion: application.version }) });
+  const cancelApplication = async (application: CharacterApplicationDto) => apiRequest<CharacterApplicationDto>(`/character-applications/${encodeURIComponent(application.id)}/cancel`, { method: "POST", headers: createIdempotencyHeaders(), body: JSON.stringify({ expectedVersion: application.version, reason: "player_withdraw_for_edit" }) });
 
-  return { state, refresh, clearSession, purchase, useItem, uploadPortrait, getPortraits, saveApplication, submitApplication };
+  return { state, refresh, clearSession, purchase, useItem, uploadPortrait, getPortraits, saveApplication, submitApplication, cancelApplication };
 }
