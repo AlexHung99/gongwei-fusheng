@@ -1,5 +1,26 @@
 @model SceneActivityEditor
-@{ ViewData["Title"] = $"編輯・{Model.LocationName}"; }
+@{
+    ViewData["Title"] = $"編輯・{Model.LocationName}";
+    string EffectCodeLabel(string code) => code switch
+    {
+        "vitality" => "體質",
+        "appearance" => "容貌",
+        "strategy" => "心計",
+        "luck" => "福氣",
+        "prestige" => "威望",
+        "coupon" => "優惠券",
+        _ => code
+    };
+    var effectCodes = new[]
+    {
+        (Type: "stat", Code: "vitality", Label: "體質"),
+        (Type: "stat", Code: "appearance", Label: "容貌"),
+        (Type: "stat", Code: "strategy", Label: "心計"),
+        (Type: "stat", Code: "luck", Label: "福氣"),
+        (Type: "stat", Code: "prestige", Label: "威望"),
+        (Type: "inventory", Code: "coupon", Label: "優惠券")
+    };
+}
 <section class="page-heading compact"><div><a class="back-link" asp-action="Index">← 返回場景列表</a><p class="eyebrow">@Model.Code</p><h1>@Model.LocationName・@Model.DisplayName</h1><p>目前版本 v@Model.Version · 狀態：@(Model.Status == "published" ? "已發布" : "草稿")</p></div><form asp-action="Publish" method="post" class="publish-box" data-confirm="確定發布此場景？發布後玩家會讀取最新版設定。"><input type="hidden" name="id" value="@Model.Id" /><input type="hidden" name="version" value="@Model.Version" /><input name="reason" required minlength="3" placeholder="填寫發布理由" /><button class="button gold" type="submit">發布最新版</button></form></section>
 <section class="panel form-panel">
     <div class="panel-title"><div><p class="eyebrow">ACTIVITY PROFILE</p><h2>場景基本設定</h2></div><span class="version-chip">v@Model.Version</span></div>
@@ -16,17 +37,29 @@
 @for (var optionIndex = 0; optionIndex < Model.Options.Count; optionIndex++) {
     var option = Model.Options[optionIndex];
     <details class="option-card" open="@(optionIndex == 0)">
-        <summary><span class="fortune-number">@(optionIndex + 1)</span><div><strong>@option.DisplayName</strong><small>@option.Code</small></div><span class="effect-summary">@string.Join("、", option.Effects.Select(x => $"{x.Code} +{x.Amount}"))</span><span class="status @(option.IsEnabled ? "published" : "draft")">@(option.IsEnabled ? "啟用" : "停用")</span></summary>
+        <summary><span class="fortune-number">@(optionIndex + 1)</span><div><strong>@option.DisplayName</strong><small>@option.Code</small></div><span class="effect-summary">@string.Join("、", option.Effects.Select(x => $"{EffectCodeLabel(x.Code)} +{x.Amount}"))</span><span class="status @(option.IsEnabled ? "published" : "draft")">@(option.IsEnabled ? "啟用" : "停用")</span></summary>
         <form asp-action="UpdateOption" method="post" class="option-form" data-effect-form>
             <input type="hidden" name="ActivityId" value="@Model.Id" /><input type="hidden" name="OptionId" value="@option.Id" /><input type="hidden" name="Version" value="@option.Version" />
             <div class="form-grid"><label>玩家可見籤名<input name="DisplayName" value="@option.DisplayName" required /></label><label>排序<input name="SortOrder" value="@option.SortOrder" type="number" min="0" /></label><label class="wide">抽籤完成後顯示文字<input name="ResultRevealText" value="@option.ResultRevealText" required /></label></div>
             <div class="effect-editor"><div class="subheading"><strong>隱藏效果</strong><button type="button" class="text-button" data-add-effect>＋新增效果</button></div><div data-effect-rows>
             @for (var effectIndex = 0; effectIndex < option.Effects.Count; effectIndex++) { var effect = option.Effects[effectIndex];
-                <div class="effect-row"><select name="Effects[@effectIndex].Type"><option value="stat" selected="@(effect.Type == "stat")">能力</option><option value="reputation" selected="@(effect.Type == "reputation")">威望</option><option value="item" selected="@(effect.Type == "item")">道具</option></select><input name="Effects[@effectIndex].Code" value="@effect.Code" aria-label="效果代碼" required /><input name="Effects[@effectIndex].Amount" value="@effect.Amount" type="number" min="1" aria-label="數量" required /><button type="button" class="remove-button" data-remove-effect aria-label="刪除效果">×</button></div>
+                <div class="effect-row">
+                    <select name="Effects[@effectIndex].Type" data-effect-type aria-label="效果類型">
+                        <option value="stat" selected="@(effect.Type == "stat")">能力／威望</option>
+                        <option value="inventory" selected="@(effect.Type == "inventory")">道具</option>
+                        @if (effect.Type is not ("stat" or "inventory")) { <option value="@effect.Type" selected>舊資料：@effect.Type</option> }
+                    </select>
+                    <select name="Effects[@effectIndex].Code" data-effect-code aria-label="能力或道具" required>
+                        @foreach (var entry in effectCodes) { <option value="@entry.Code" data-effect-type="@entry.Type" selected="@(effect.Code == entry.Code)">@entry.Label</option> }
+                        @if (!effectCodes.Any(entry => entry.Code == effect.Code)) { <option value="@effect.Code" data-effect-type="@effect.Type" selected>舊資料：@effect.Code</option> }
+                    </select>
+                    <input name="Effects[@effectIndex].Amount" value="@effect.Amount" type="number" min="1" aria-label="數量" required />
+                    <button type="button" class="remove-button" data-remove-effect aria-label="刪除效果">×</button>
+                </div>
             }</div></div>
             <div class="option-footer"><label class="switch"><input type="checkbox" name="IsEnabled" value="true" checked="@option.IsEnabled" /><span></span>啟用此籤</label><label class="reason-inline">調整理由<input name="ChangeReason" required minlength="3" placeholder="必填，寫入稽核紀錄" /></label><button class="button primary" type="submit">儲存此籤</button></div>
         </form>
     </details>
 }
 </div>
-<template id="effect-row-template"><div class="effect-row"><select data-field="Type"><option value="stat">能力</option><option value="reputation">威望</option><option value="item">道具</option></select><input data-field="Code" value="vitality" required /><input data-field="Amount" value="1" type="number" min="1" required /><button type="button" class="remove-button" data-remove-effect>×</button></div></template>
+<template id="effect-row-template"><div class="effect-row"><select data-field="Type" data-effect-type><option value="stat">能力／威望</option><option value="inventory">道具</option></select><select data-field="Code" data-effect-code required><option value="vitality" data-effect-type="stat">體質</option><option value="appearance" data-effect-type="stat">容貌</option><option value="strategy" data-effect-type="stat">心計</option><option value="luck" data-effect-type="stat">福氣</option><option value="prestige" data-effect-type="stat">威望</option><option value="coupon" data-effect-type="inventory">優惠券</option></select><input data-field="Amount" value="1" type="number" min="1" required /><button type="button" class="remove-button" data-remove-effect>×</button></div></template>

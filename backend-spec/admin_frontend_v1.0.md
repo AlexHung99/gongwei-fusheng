@@ -105,10 +105,9 @@ Browser
 
 - `DisplayName`：玩家可見且可指定的籤名。
 - `ResultRevealText`：交易成功後才可回傳的結果文字。
-- `Effects[]`：一支籤可有多個效果。
-  - `Type=stat`：`vitality`, `scheme`, `appearance`, `fortune`。
-  - `Type=reputation`：`reputation`。
-  - `Type=item`：道具 code，例如 `coupon`。
+- `Effects[]`：一支籤可有多個效果。後台一律顯示中文名稱，提交與儲存仍使用固定英文 code。
+  - `type=stat`：`vitality → 體質`、`appearance → 容貌`、`strategy → 心計`、`luck → 福氣`、`prestige → 威望`。
+  - `type=inventory`：道具 code，例如 `coupon → 優惠券`。
   - `Amount`：正整數；百分比／點數語意以權威規則與資料欄位為準，不由 UI 猜測。
 - `SortOrder`、`IsEnabled`、`Version`、`ChangeReason`。
 
