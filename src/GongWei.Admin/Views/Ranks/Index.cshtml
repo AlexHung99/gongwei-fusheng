@@ -1,16 +1,17 @@
 @model IReadOnlyList<RankApplicationOptionRow>
 @{
-    ViewData["Title"] = "起始位號";
+    ViewData["Title"] = "位號設定";
     string RoleLabel(string role) => role switch { "consort" => "嬪妃", "prince" => "皇子", "princess" => "帝姬", _ => role };
 }
 
 <section class="page-heading">
-    <div><p class="eyebrow">APPLICATION RANKS</p><h1>建角起始位號</h1><p>設定審核建角時可選擇的位號，以及角色建立時寫入的初始能力。</p></div>
+    <div><p class="eyebrow">RANK MANAGEMENT</p><h1>位號設定</h1><p>查詢、新增、修改或刪除嬪妃、皇子與帝姬位號。</p></div>
+    <a class="button primary" asp-action="Create">新增位號</a>
 </section>
 
 <div class="notice-card">
-    <strong>結算規則</strong>
-    <p>核准申請時只顯示「啟用且可作為建角起始位號」的項目；能力值以 1000 為滿值，威望、恩寵與銀兩仍固定從 0 開始。</p>
+    <strong>資料安全規則</strong>
+    <p>已被角色或審核紀錄使用的位號不會從資料庫硬刪除；點選「刪除」會停用位號並移出建角選單，歷史資料仍保留。</p>
 </div>
 
 <section class="panel table-panel">
@@ -22,34 +23,28 @@
                 <option value="prince">皇子</option>
                 <option value="princess">帝姬</option>
             </select>
-            <input data-table-filter placeholder="搜尋品級或位號" aria-label="搜尋位號" />
+            <input data-table-filter placeholder="搜尋品級、位號或代碼" aria-label="搜尋位號" />
         </div>
         <span data-filter-count data-total="@Model.Count">顯示 @Model.Count / @Model.Count 個位號</span>
     </div>
-    <div class="rank-option-list" data-filter-target>
-    @foreach (var rank in Model)
-    {
-        <form class="rank-option-row" method="post" asp-action="Update" data-role="@rank.Role">
-            <input type="hidden" name="Id" value="@rank.Id" />
-            <input type="hidden" name="Version" value="@rank.Version" />
-            <header>
-                <span class="status @(rank.IsApplicationOption ? "published" : "draft")">@(rank.IsApplicationOption ? "建角可選" : "不提供")</span>
-                <strong>@RoleLabel(rank.Role)・@rank.GradeCode</strong>
-                <code>@rank.Code</code>
-            </header>
-            <div class="rank-option-fields">
-                <label><span>位號名稱</span><input name="DisplayName" value="@rank.DisplayName" maxlength="100" required /></label>
-                <label><span>體質</span><input name="Vitality" type="number" min="0" max="1000" value="@rank.Vitality" /></label>
-                <label><span>容貌</span><input name="Appearance" type="number" min="0" max="1000" value="@rank.Appearance" /></label>
-                <label><span>心計</span><input name="Strategy" type="number" min="0" max="1000" value="@rank.Strategy" /></label>
-                <label><span>福氣</span><input name="Luck" type="number" min="0" max="1000" value="@rank.Luck" /></label>
-            </div>
-            <footer>
-                <label class="switch"><input name="IsApplicationOption" type="checkbox" value="true" checked="@rank.IsApplicationOption" disabled="@(!rank.IsActive)" /> 可作為建角起始位號</label>
-                <input name="ChangeReason" placeholder="異動理由（至少 3 字）" minlength="3" maxlength="500" required />
-                <button class="button primary" type="submit">儲存</button>
-            </footer>
-        </form>
-    }
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>身份</th><th>品級／位號</th><th>門檻／月俸</th><th>初始能力</th><th>建角</th><th>狀態</th><th>版本</th><th>操作</th></tr></thead>
+            <tbody data-filter-target>
+            @foreach (var rank in Model)
+            {
+                <tr class="rank-option-row" data-role="@rank.Role">
+                    <td><strong>@RoleLabel(rank.Role)</strong></td>
+                    <td><strong>@rank.GradeCode・@rank.DisplayName</strong><small><code>@rank.Code</code></small></td>
+                    <td>威望 @rank.PrestigeRequired.ToString("N0")<small>月俸 @rank.MonthlyStipend.ToString("N0")</small></td>
+                    <td>體 @rank.Vitality／容 @rank.Appearance／心 @rank.Strategy／福 @rank.Luck</td>
+                    <td><span class="status @(rank.IsApplicationOption ? "published" : "draft")">@(rank.IsApplicationOption ? "可選" : "不提供")</span></td>
+                    <td><span class="status @(rank.IsActive ? "published" : "draft")">@(rank.IsActive ? "啟用" : "已刪除")</span></td>
+                    <td>v@rank.Version</td>
+                    <td><a class="text-button rank-edit-link" asp-action="Edit" asp-route-id="@rank.Id">查看／編輯</a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
     </div>
 </section>

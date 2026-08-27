@@ -67,6 +67,65 @@
     display: none;
 }
 
+.rank-edit-link {
+    white-space: nowrap;
+}
+
+.rank-editor small {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.validation-summary:empty {
+    display: none;
+}
+
+.validation-summary {
+    margin: 20px 22px 0;
+    padding: 12px 14px;
+    border: 1px solid #dfb0b0;
+    background: #fff0f0;
+    color: var(--rose);
+    font-size: 12px;
+}
+
+.validation-summary ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.danger-zone {
+    display: grid;
+    grid-template-columns: 1fr minmax(320px, .8fr);
+    align-items: end;
+    gap: 28px;
+    padding: 22px;
+    border-color: #dfb0b0;
+}
+
+.danger-zone h2 {
+    margin: 0 0 6px;
+    color: var(--rose);
+    font-size: 18px;
+}
+
+.danger-zone p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.danger-zone form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+.button.danger {
+    background: var(--rose);
+    color: #fff;
+}
+
 .rank-option-row header {
     display: flex;
     align-items: center;
@@ -125,6 +184,11 @@
 
     .rank-option-fields,
     .rank-option-row footer {
+        grid-template-columns: 1fr;
+    }
+
+    .danger-zone,
+    .danger-zone form {
         grid-template-columns: 1fr;
     }
 

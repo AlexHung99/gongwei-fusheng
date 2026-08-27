@@ -66,20 +66,60 @@ public sealed record CharacterApplicationRow(
 
 public sealed record RankApplicationOptionRow(
     string Id, string Code, string Role, string GradeCode, string DisplayName,
+    int Ordinal, long PrestigeRequired, long MonthlyStipend, long SourceAnnualStipend,
+    int? Capacity, bool IsLead,
     bool IsApplicationOption, int Vitality, int Appearance, int Strategy, int Luck,
     bool IsActive, long Version);
+
+public sealed class CreateRankInput
+{
+    [Required, StringLength(50), RegularExpression("^[a-z0-9][a-z0-9-]*$")]
+    public string Code { get; set; } = "";
+    [Required, RegularExpression("^(consort|prince|princess)$")]
+    public string Role { get; set; } = "consort";
+    [Required, StringLength(20)] public string GradeCode { get; set; } = "";
+    [Required, StringLength(80)] public string DisplayName { get; set; } = "";
+    [Range(0, int.MaxValue)] public int Ordinal { get; set; }
+    [Range(0, long.MaxValue)] public long PrestigeRequired { get; set; }
+    [Range(0, long.MaxValue)] public long MonthlyStipend { get; set; }
+    [Range(0, long.MaxValue)] public long SourceAnnualStipend { get; set; }
+    [Range(1, int.MaxValue)] public int? Capacity { get; set; }
+    public bool IsLead { get; set; }
+    public bool IsApplicationOption { get; set; }
+    public bool IsActive { get; set; } = true;
+    [Range(0, 1000)] public int Vitality { get; set; }
+    [Range(0, 1000)] public int Appearance { get; set; }
+    [Range(0, 1000)] public int Strategy { get; set; }
+    [Range(0, 1000)] public int Luck { get; set; }
+    [Required, StringLength(500, MinimumLength = 3)] public string ChangeReason { get; set; } = "";
+}
 
 public sealed class UpdateRankApplicationOptionInput
 {
     [Required] public string Id { get; set; } = "";
-    [Required, StringLength(100)] public string DisplayName { get; set; } = "";
+    [Required, StringLength(20)] public string GradeCode { get; set; } = "";
+    [Required, StringLength(80)] public string DisplayName { get; set; } = "";
+    [Range(0, int.MaxValue)] public int Ordinal { get; set; }
+    [Range(0, long.MaxValue)] public long PrestigeRequired { get; set; }
+    [Range(0, long.MaxValue)] public long MonthlyStipend { get; set; }
+    [Range(0, long.MaxValue)] public long SourceAnnualStipend { get; set; }
+    [Range(1, int.MaxValue)] public int? Capacity { get; set; }
+    public bool IsLead { get; set; }
     public bool IsApplicationOption { get; set; }
+    public bool IsActive { get; set; }
     [Range(0, 1000)] public int Vitality { get; set; }
     [Range(0, 1000)] public int Appearance { get; set; }
     [Range(0, 1000)] public int Strategy { get; set; }
     [Range(0, 1000)] public int Luck { get; set; }
     [Required, StringLength(500, MinimumLength = 3)] public string ChangeReason { get; set; } = "";
     [Range(1, long.MaxValue)] public long Version { get; set; }
+}
+
+public sealed class DeleteRankInput
+{
+    [Required] public string Id { get; set; } = "";
+    [Range(1, long.MaxValue)] public long Version { get; set; }
+    [Required, StringLength(500, MinimumLength = 3)] public string ChangeReason { get; set; } = "";
 }
 
 public sealed record NpcContentRow(

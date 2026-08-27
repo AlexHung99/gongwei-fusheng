@@ -147,7 +147,43 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
         lock (_sync)
         {
             return Task.FromResult<IReadOnlyList<RankApplicationOptionRow>>(
-                _ranks.OrderBy(x => x.Role).ThenBy(x => x.GradeCode).ThenBy(x => x.DisplayName).ToArray());
+                _ranks.OrderBy(x => x.Role).ThenBy(x => x.Ordinal).ThenBy(x => x.DisplayName).ToArray());
+        }
+    }
+
+    public Task<RankApplicationOptionRow?> GetRankAsync(string id, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            return Task.FromResult(_ranks.FirstOrDefault(x => x.Id == id));
+        }
+    }
+
+    public Task<AdminOperationResult> CreateRankAsync(
+        CreateRankInput input, string actor, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            var code = input.Code.Trim().ToLowerInvariant();
+            var name = input.DisplayName.Trim();
+            if (_ranks.Any(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase)))
+                return Task.FromResult(new AdminOperationResult(false, "位號代碼已存在。"));
+            if (_ranks.Any(x => x.Role == input.Role && x.DisplayName == name))
+                return Task.FromResult(new AdminOperationResult(false, "同一身份下已有相同的位號名稱。"));
+            if (!input.IsActive && input.IsApplicationOption)
+                return Task.FromResult(new AdminOperationResult(false, "停用中的位號不可設為建角起始位號。"));
+
+            var created = new RankApplicationOptionRow(
+                Guid.NewGuid().ToString("N"), code, input.Role, input.GradeCode.Trim(), name,
+                input.Ordinal, input.PrestigeRequired, input.MonthlyStipend, input.SourceAnnualStipend,
+                input.Capacity, input.IsLead,
+                input.IsApplicationOption, input.Vitality, input.Appearance, input.Strategy, input.Luck,
+                input.IsActive, 1);
+            _ranks.Add(created);
+            AddAudit(actor, "rank.create", created.DisplayName, "（不存在）",
+                $"{created.Role}/{created.GradeCode}; 啟用={created.IsActive}; 可建角={created.IsApplicationOption}",
+                input.ChangeReason);
+            return Task.FromResult(new AdminOperationResult(true, $"位號「{created.DisplayName}」已新增。", created.Version));
         }
     }
 
@@ -161,13 +197,23 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
             var current = _ranks[index];
             if (current.Version != input.Version)
                 return Task.FromResult(new AdminOperationResult(false, "位號版本已更新，請重新載入後再編輯。"));
-            if (!current.IsActive && input.IsApplicationOption)
+            if (!input.IsActive && input.IsApplicationOption)
                 return Task.FromResult(new AdminOperationResult(false, "停用中的位號不可設為建角起始位號。"));
+            if (_ranks.Any(x => x.Id != current.Id && x.Role == current.Role && x.DisplayName == input.DisplayName.Trim()))
+                return Task.FromResult(new AdminOperationResult(false, "同一身份下已有相同的位號名稱。"));
 
             var updated = current with
             {
+                GradeCode = input.GradeCode.Trim(),
                 DisplayName = input.DisplayName.Trim(),
+                Ordinal = input.Ordinal,
+                PrestigeRequired = input.PrestigeRequired,
+                MonthlyStipend = input.MonthlyStipend,
+                SourceAnnualStipend = input.SourceAnnualStipend,
+                Capacity = input.Capacity,
+                IsLead = input.IsLead,
                 IsApplicationOption = input.IsApplicationOption,
+                IsActive = input.IsActive,
                 Vitality = input.Vitality,
                 Appearance = input.Appearance,
                 Strategy = input.Strategy,
@@ -176,10 +222,38 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
             };
             _ranks[index] = updated;
             AddAudit(actor, "rank.application-option.update", current.DisplayName,
-                $"可建角={current.IsApplicationOption}; 體{current.Vitality}/容{current.Appearance}/心{current.Strategy}/福{current.Luck}",
-                $"可建角={updated.IsApplicationOption}; 體{updated.Vitality}/容{updated.Appearance}/心{updated.Strategy}/福{updated.Luck}",
+                $"品級={current.GradeCode}; 啟用={current.IsActive}; 可建角={current.IsApplicationOption}; 體{current.Vitality}/容{current.Appearance}/心{current.Strategy}/福{current.Luck}",
+                $"品級={updated.GradeCode}; 啟用={updated.IsActive}; 可建角={updated.IsApplicationOption}; 體{updated.Vitality}/容{updated.Appearance}/心{updated.Strategy}/福{updated.Luck}",
                 input.ChangeReason);
-            return Task.FromResult(new AdminOperationResult(true, $"「{updated.DisplayName}」的建角設定已儲存。", updated.Version));
+            return Task.FromResult(new AdminOperationResult(true, $"位號「{updated.DisplayName}」已儲存。", updated.Version));
+        }
+    }
+
+    public Task<AdminOperationResult> DeleteRankAsync(
+        DeleteRankInput input, string actor, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            var index = _ranks.FindIndex(x => x.Id == input.Id);
+            if (index < 0) return Task.FromResult(new AdminOperationResult(false, "找不到指定位號。"));
+            var current = _ranks[index];
+            if (current.Version != input.Version)
+                return Task.FromResult(new AdminOperationResult(false, "位號版本已更新，請重新載入後再刪除。"));
+            if (!current.IsActive)
+                return Task.FromResult(new AdminOperationResult(false, "此位號已經停用。"));
+
+            var deleted = current with
+            {
+                IsActive = false,
+                IsApplicationOption = false,
+                Version = current.Version + 1
+            };
+            _ranks[index] = deleted;
+            AddAudit(actor, "rank.delete", current.DisplayName,
+                $"啟用={current.IsActive}; 可建角={current.IsApplicationOption}",
+                "啟用=False; 可建角=False（邏輯刪除）", input.ChangeReason);
+            return Task.FromResult(new AdminOperationResult(
+                true, $"位號「{current.DisplayName}」已刪除（歷史資料保留）。", deleted.Version));
         }
     }
 
@@ -276,5 +350,6 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
     private static RankApplicationOptionRow R(
         string id, string role, string grade, string name,
         int vitality, int appearance, int strategy, int luck)
-        => new(id, id, role, grade, name, true, vitality, appearance, strategy, luck, true, 1);
+        => new(id, id, role, grade, name, 0, 0, 0, 0, null, false,
+            true, vitality, appearance, strategy, luck, true, 1);
 }

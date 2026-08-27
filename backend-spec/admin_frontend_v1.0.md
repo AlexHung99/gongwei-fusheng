@@ -42,7 +42,7 @@ Browser
 |---|---|---|---|
 | `/` | 今日宮務、數量卡、隊列、近期 Audit | `AnyManager` | UI、Query 介面完成 |
 | `/Applications` | 建角申請列表與搜尋 | `CharacterReviewer` | UI、Query 介面完成；Approve／Return 待接 Command |
-| `/Ranks` | 建角起始位號與初始能力 | `SystemConfigManager` | UI、Query／Update 介面完成 |
+| `/Ranks` | 嬪妃／皇子／帝姬位號與建角初始能力 | `SystemConfigManager` | 標準 CRUD UI 與介面完成 |
 | `/SceneActivities` | 4 個場所／6 個活動與籤池摘要 | `ContentEditor` | UI、Query 完成 |
 | `/SceneActivities/Edit/{id}` | 場景資料、44 支籤、多重效果 | `ContentEditor` | UI、Query／Update／Publish 介面完成 |
 | `/Npcs` | NPC 內容版本列表 | `ContentEditor` | UI、Query 介面完成；Editor 待接 CMS Commands |
@@ -123,21 +123,25 @@ Browser
 6. 玩家抽籤交易成功後才寫 result、Ledger、Stats、Chronicle、Audit／Outbox；任一步失敗全數 rollback。
 7. Player list/detail endpoints 結算前只回 option `id/code/display_name`，不得序列化 `effects` 或 `result_reveal_text`。
 
-### 5.4 建角起始位號管理
+### 5.4 位號 CRUD 管理
 
-`/Ranks` 必須讀取正式 `game.ranks`，讓具 `SystemConfigManager` 權限的管理員管理：
+`/Ranks` 必須讀取正式 `game.ranks`，讓具 `SystemConfigManager` 權限的管理員使用標準 CRUD 流程管理：
 
 - 清單可依角色身份篩選：全部、嬪妃 `consort`、皇子 `prince`、帝姬 `princess`；身份篩選可與品級／位號文字搜尋同時使用。
+- Create：從清單右上「新增位號」進入獨立新增頁。
+- Read：清單顯示身份、品級、位號、初始能力、建角可選狀態、啟用狀態與版本；可進入單筆詳細頁。
+- Update：在獨立編輯頁修改品級、位號名稱、排序、威望門檻、月俸／原始年俸、名額、主位、初始能力、啟用狀態與建角可選狀態。代碼與身份建立後只讀。
+- Delete：由編輯頁的危險操作區執行，需再次確認並填寫理由。系統僅邏輯刪除，將 `is_active=false` 與 `is_application_option=false`，永久保留已被參照的歷史資料。
 - 位號名稱 `display_name`。
 - 是否可作為建角起始位號 `is_application_option`。
 - `initial_stats` 中的 `vitality`、`appearance`、`strategy`、`luck`，每項範圍 0～1000。
-- `applies_to_role`、`grade_code`、`code` 與啟用狀態在此頁只讀；完整位階結構另由位階 CMS 管理。
+- `applies_to_role` 與 `code` 在新增時建立，建立後只讀；`grade_code` 與啟用狀態可於編輯頁修改。
 - 威望、恩寵、銀兩固定為 0，不得由本畫面修改。
 - 停用位號不可勾選為建角起始位號。
 
 建角審核頁的起始位號下拉選單只查詢 `is_active = true AND is_application_option = true AND applies_to_role = 申請角色`。修改設定不追溯更動既有角色；新的核准交易才採用最新值。
 
-每次儲存必須驗證管理員 DB RBAC、submitted version、同角色位號名稱唯一性與能力範圍，並在同一個 `ReadCommitted` 交易中更新 Rank、寫入 Audit Log 及 Outbox。異動理由至少 3 字，Audit 保存 before／after、actor、reason、request ID 與 occurred_at。現有 schema 已包含 `is_application_option`、`initial_stats` 與 `version`，不需要新增資料表或 Migration。
+每次新增、修改或刪除必須驗證管理員 DB RBAC；修改與刪除另驗證 submitted version。後端必須檢查代碼全局唯一、同角色位號名稱唯一、身份白名單與能力範圍，並在同一個 `ReadCommitted` 交易中寫入 Rank、Audit Log 及 Outbox。異動理由至少 3 字，Audit 保存 before／after、actor、reason、request ID 與 occurred_at。現有 schema 已包含 `is_active`、`is_application_option`、`initial_stats` 與 `version`，邏輯刪除不需要新增資料表或 Migration。
 
 ## 6. `IAdminUiApplication` 對接清單
 
@@ -151,7 +155,10 @@ Browser
 | `PublishSceneActivityAsync` | 驗證整個籤池後原子發布 revision |
 | `GetCharacterApplicationsAsync` | 管理員申請列表，含 revision 與 review note |
 | `GetRankApplicationOptionsAsync` | 讀取全部位號及其建角選項、初始能力與版本 |
+| `GetRankAsync` | 讀取單筆位號詳細資料 |
+| `CreateRankAsync` | 新增位號；同交易 Audit／Outbox |
 | `UpdateRankApplicationOptionAsync` | 更新位號名稱、建角選項與四項初始能力；同交易 Audit／Outbox |
+| `DeleteRankAsync` | 邏輯刪除位號並移出建角選單；同交易 Audit／Outbox |
 | `GetNpcsAsync` | NPC draft／published 摘要與版本 |
 | `GetAuditAsync` | 分頁、篩選、不可變 Audit 查詢 |
 | `GetGameSettingsAsync` | 目前生效的可管理設定 |
@@ -163,7 +170,7 @@ Browser
 - 真實 LINE 管理登入、登出、Session renewal／revocation。
 - Application／Infrastructure DI 與 PostgreSQL queries／commands。
 - 建角 Approve、Return、補件歷程與立繪檢視。
-- 起始位號正式 Query／Update adapter；審核下拉選單須即時讀取已啟用的建角位號。
+- 位號正式 Query／Create／Update／Delete adapter；審核下拉選單須即時讀取已啟用的建角位號。
 - NPC 新增、草稿、預覽、發布、回復 Revision、立繪上傳。
 - 遊戲設定 Update Command。
 - Audit 的伺服器端分頁、條件篩選與詳細頁。

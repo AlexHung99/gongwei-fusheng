@@ -1,0 +1,47 @@
+@model RankApplicationOptionRow
+@{
+    ViewData["Title"] = $"編輯{Model.DisplayName}";
+    string RoleLabel(string role) => role switch { "consort" => "嬪妃", "prince" => "皇子", "princess" => "帝姬", _ => role };
+}
+
+<a class="back-link" asp-action="Index">← 返回位號清單</a>
+<section class="page-heading"><div><p class="eyebrow">EDIT RANK</p><h1>查看／編輯位號</h1><p>@RoleLabel(Model.Role)・@Model.GradeCode・@Model.DisplayName</p></div><span class="version-chip">v@Model.Version</span></section>
+
+<form method="post" asp-action="Update" class="panel form-panel rank-editor">
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <input type="hidden" name="Version" value="@Model.Version" />
+    <div asp-validation-summary="All" class="validation-summary"></div>
+    <div class="form-grid">
+        <label><span>位號代碼</span><input value="@Model.Code" readonly /><small>代碼已被系統參照，建立後不直接修改。</small></label>
+        <label><span>身份類別</span><input value="@RoleLabel(Model.Role)" readonly /><small>避免既有角色被移到其他身份。</small></label>
+        <label><span>品級</span><input name="GradeCode" value="@Model.GradeCode" maxlength="20" required /></label>
+        <label><span>位號名稱</span><input name="DisplayName" value="@Model.DisplayName" maxlength="80" required /></label>
+        <label><span>排序值</span><input name="Ordinal" type="number" min="0" value="@Model.Ordinal" /><small>數值越小越前面。</small></label>
+        <label><span>晉升所需威望</span><input name="PrestigeRequired" type="number" min="0" value="@Model.PrestigeRequired" /></label>
+        <label><span>每月俸祿</span><input name="MonthlyStipend" type="number" min="0" value="@Model.MonthlyStipend" /></label>
+        <label><span>原始年俸</span><input name="SourceAnnualStipend" type="number" min="0" value="@Model.SourceAnnualStipend" /></label>
+        <label><span>名額上限</span><input name="Capacity" type="number" min="1" value="@Model.Capacity" placeholder="留空表示不限" /></label>
+        <label class="switch"><input name="IsLead" type="checkbox" value="true" checked="@Model.IsLead" /> 為該品級主位</label>
+        <label><span>體質</span><input name="Vitality" type="number" min="0" max="1000" value="@Model.Vitality" /></label>
+        <label><span>容貌</span><input name="Appearance" type="number" min="0" max="1000" value="@Model.Appearance" /></label>
+        <label><span>心計</span><input name="Strategy" type="number" min="0" max="1000" value="@Model.Strategy" /></label>
+        <label><span>福氣</span><input name="Luck" type="number" min="0" max="1000" value="@Model.Luck" /></label>
+        <label class="switch"><input name="IsActive" type="checkbox" value="true" checked="@Model.IsActive" /> 啟用位號</label>
+        <label class="switch"><input name="IsApplicationOption" type="checkbox" value="true" checked="@Model.IsApplicationOption" /> 可作為建角起始位號</label>
+        <label class="wide required-reason"><span>異動理由</span><input name="ChangeReason" minlength="3" maxlength="500" required /></label>
+        <div class="wide form-actions"><a class="button" asp-action="Index">取消</a><button class="button primary" type="submit">儲存修改</button></div>
+    </div>
+</form>
+
+@if (Model.IsActive)
+{
+    <section class="panel danger-zone">
+        <div><h2>刪除位號</h2><p>刪除後不再供建角、晉降或管理人員選擇；既有角色與稽核紀錄不受影響。</p></div>
+        <form method="post" asp-action="Delete" data-confirm="確定要刪除這個位號嗎？歷史資料會保留。">
+            <input type="hidden" name="Id" value="@Model.Id" />
+            <input type="hidden" name="Version" value="@Model.Version" />
+            <input name="ChangeReason" placeholder="刪除理由（至少 3 字）" minlength="3" maxlength="500" required />
+            <button class="button danger" type="submit">刪除</button>
+        </form>
+    </section>
+}

@@ -1,0 +1,29 @@
+@model CreateRankInput
+@{ ViewData["Title"] = "新增位號"; }
+
+<a class="back-link" asp-action="Index">← 返回位號清單</a>
+<section class="page-heading"><div><p class="eyebrow">CREATE RANK</p><h1>新增位號</h1><p>建立嬪妃、皇子或帝姬位號，並設定是否可用於建角。</p></div></section>
+
+<form method="post" asp-action="Create" class="panel form-panel rank-editor">
+    <div asp-validation-summary="All" class="validation-summary"></div>
+    <div class="form-grid">
+        <label><span>位號代碼</span><input asp-for="Code" placeholder="例：consort-ronghua" required /><small>僅限小寫英文、數字與連字號；建立後不建議變更。</small></label>
+        <label><span>身份類別</span><select asp-for="Role"><option value="consort">嬪妃</option><option value="prince">皇子</option><option value="princess">帝姬</option></select></label>
+        <label><span>品級</span><input asp-for="GradeCode" placeholder="例：正九品" required /></label>
+        <label><span>位號名稱</span><input asp-for="DisplayName" required /></label>
+        <label><span>排序值</span><input asp-for="Ordinal" type="number" min="0" /><small>數值越小越前面。</small></label>
+        <label><span>晉升所需威望</span><input asp-for="PrestigeRequired" type="number" min="0" /></label>
+        <label><span>每月俸祿</span><input asp-for="MonthlyStipend" type="number" min="0" /></label>
+        <label><span>原始年俸</span><input asp-for="SourceAnnualStipend" type="number" min="0" /></label>
+        <label><span>名額上限</span><input asp-for="Capacity" type="number" min="1" placeholder="留空表示不限" /></label>
+        <label class="switch"><input asp-for="IsLead" /> 為該品級主位</label>
+        <label><span>體質</span><input asp-for="Vitality" type="number" min="0" max="1000" /></label>
+        <label><span>容貌</span><input asp-for="Appearance" type="number" min="0" max="1000" /></label>
+        <label><span>心計</span><input asp-for="Strategy" type="number" min="0" max="1000" /></label>
+        <label><span>福氣</span><input asp-for="Luck" type="number" min="0" max="1000" /></label>
+        <label class="switch"><input asp-for="IsActive" /> 啟用位號</label>
+        <label class="switch"><input asp-for="IsApplicationOption" /> 可作為建角起始位號</label>
+        <label class="wide required-reason"><span>新增理由</span><input asp-for="ChangeReason" minlength="3" maxlength="500" required /></label>
+        <div class="wide form-actions"><a class="button" asp-action="Index">取消</a><button class="button primary" type="submit">新增</button></div>
+    </div>
+</form>

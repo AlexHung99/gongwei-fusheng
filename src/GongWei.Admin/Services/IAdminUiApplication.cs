@@ -12,7 +12,10 @@ public interface IAdminUiApplication
     Task<AdminOperationResult> PublishSceneActivityAsync(string id, long version, string reason, string actor, CancellationToken cancellationToken);
     Task<IReadOnlyList<CharacterApplicationRow>> GetCharacterApplicationsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<RankApplicationOptionRow>> GetRankApplicationOptionsAsync(CancellationToken cancellationToken);
+    Task<RankApplicationOptionRow?> GetRankAsync(string id, CancellationToken cancellationToken);
+    Task<AdminOperationResult> CreateRankAsync(CreateRankInput input, string actor, CancellationToken cancellationToken);
     Task<AdminOperationResult> UpdateRankApplicationOptionAsync(UpdateRankApplicationOptionInput input, string actor, CancellationToken cancellationToken);
+    Task<AdminOperationResult> DeleteRankAsync(DeleteRankInput input, string actor, CancellationToken cancellationToken);
     Task<IReadOnlyList<NpcContentRow>> GetNpcsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<AdminAuditRow>> GetAuditAsync(CancellationToken cancellationToken);
     Task<GameSettingsViewModel> GetGameSettingsAsync(CancellationToken cancellationToken);

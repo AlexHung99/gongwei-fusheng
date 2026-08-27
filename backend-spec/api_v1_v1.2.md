@@ -286,8 +286,10 @@ Auth 穩定錯誤碼：`LINE_ACCESS_DENIED`、`AUTH_STATE_INVALID`、`AUTH_STATE
 | `POST /admin/world/activities/{id}/options` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `201 LocationActivityOptionDto` | Idem；結果揭示文字與結構化效果只供後台／結算；理由必填 |
 | `PATCH /admin/world/activity-options/{optionId}` | CE/GM/SA | `UpsertLocationActivityOptionRequest` | `LocationActivityOptionDto` | `If-Match`；可編輯人物名稱、抽中後能力／數值、排序與啟用狀態；寫 Audit |
 | `GET /admin/ranks` | GM/AUD/SA | Filters | `RankDto[]` | 含未啟用位階 |
+| `GET /admin/ranks/{id}` | GM/AUD/SA | — | `RankDto` | 位號詳細資料與目前 `version` |
 | `POST /admin/ranks` | GM/SA | `UpsertRankRequest` | `201 RankDto` | Idem |
 | `PATCH /admin/ranks/{id}` | GM/SA | `UpsertRankRequest` | `RankDto` | `If-Match`；不刪除歷史使用中 Rank |
+| `DELETE /admin/ranks/{id}` | GM/SA | `ReasonRequest` | `204` | `If-Match`；邏輯刪除：`is_active=false` 且 `is_application_option=false` |
 | `GET /admin/residences` | GM/AUD/SA | Filters | `ResidenceDto[]` | 含容量與未啟用居所 |
 | `POST /admin/residences` | GM/SA | `UpsertResidenceRequest` | `201 ResidenceDto` | Idem |
 | `PATCH /admin/residences/{id}` | GM/SA | `UpsertResidenceRequest` | `ResidenceDto` | `If-Match` |
@@ -570,6 +572,35 @@ Approval `execute` 不接受任意 SQL、Type 名稱或自由 Payload；只能�
 ```
 
 規則：Draft 允許欄位不完整並可重複儲存；Submit 時驗證姓名、角色類型、年齡與立繪。角色性別不接受獨立輸入，由 `role` 唯一推導：`consort/princess → female`、`prince → male`，避免 Role 與性別不一致。宮妃年齡 15～18；皇嗣姓氏固定「蕭」、年齡固定 0。建角 Request 不再顯示或採用 `birthDateLabel`；為相容舊版 Client，即使收到也必須忽略並儲存為 `null`，實際生辰僅能由皇嗣出生交易寫入。人物設定欄位 `appearance`、`biography`、`personality`、`strengths`、`weaknesses`、`likes`、`dislikes` 全部選填；Client 可以省略，Server 需將省略或空白值正規化為空字串，且不設最低字數。前台及後台標籤將 `weaknesses` 顯示為「不擅」、`dislikes` 顯示為「不喜」。`portraitId` 與 `playerPortraitSubmissionId` 提交時必須且只能提供一個。後端查立繪或上傳圖的 Owner、Role 與審核狀態；建立正式角色前上傳圖必須 Approved。所有文字移除首尾空白、拒絕 HTML；欄位長度仍不得超過資料庫定義上限。既有資料庫須套用 `migration_v1.2_optional_character_profile_fields.sql` 或等效 EF Migration。
+
+### 13.1A 位號
+
+```json
+// UpsertRankRequest
+{
+  "code": "consort-ronghua",
+  "appliesToRole": "consort",
+  "gradeCode": "從六品",
+  "displayName": "容華",
+  "ordinal": 60,
+  "prestigeRequired": 2500,
+  "monthlyStipend": 400,
+  "sourceAnnualStipend": 4800,
+  "capacity": null,
+  "isLead": false,
+  "isActive": true,
+  "isApplicationOption": false,
+  "initialStats": {
+    "vitality": 0,
+    "appearance": 0,
+    "strategy": 0,
+    "luck": 0
+  },
+  "changeReason": "新增嬪妃位號"
+}
+```
+
+位號代碼必須全局唯一，同一 `appliesToRole` 下的 `displayName` 不得重複，四項初始能力範圍為 0～1000。建立後 `code` 與 `appliesToRole` 視為不可變更的識別資料；`PATCH` 不接受這兩個欄位的改動。停用位號不得設為建角起始位號。`DELETE` 必須使用 `If-Match` 檢查版本，並以單一交易將 `is_active` 與 `is_application_option` 設為 `false`，寫入 Audit 與 Outbox；不得 Hard Delete，不得破壞角色、建角申請與晉降歷程的外鍵。
 
 ```json
 // UpdatePortraitCropRequest；座標皆相對於原圖，範圍 0–1
