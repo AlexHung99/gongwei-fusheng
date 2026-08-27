@@ -11,6 +11,7 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
 {
     private readonly object _sync = new();
     private readonly List<SceneActivityEditor> _activities = CreateActivities();
+    private readonly List<RankApplicationOptionRow> _ranks = CreateRanks();
     private readonly List<AdminAuditRow> _audit =
     [
         new(18342, DateTimeOffset.Now.AddMinutes(-18), "服主・Max", "scene.option.update", "太醫院／千澈",
@@ -141,6 +142,47 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
             new("A-0212", "蕭令儀", "帝姬・待生", "/images/portrait-princess.svg", "needs_revision", DateTimeOffset.Now.AddHours(-1), 4, "性格欄位尚未達最低字數")
         ]);
 
+    public Task<IReadOnlyList<RankApplicationOptionRow>> GetRankApplicationOptionsAsync(CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            return Task.FromResult<IReadOnlyList<RankApplicationOptionRow>>(
+                _ranks.OrderBy(x => x.Role).ThenBy(x => x.GradeCode).ThenBy(x => x.DisplayName).ToArray());
+        }
+    }
+
+    public Task<AdminOperationResult> UpdateRankApplicationOptionAsync(
+        UpdateRankApplicationOptionInput input, string actor, CancellationToken cancellationToken)
+    {
+        lock (_sync)
+        {
+            var index = _ranks.FindIndex(x => x.Id == input.Id);
+            if (index < 0) return Task.FromResult(new AdminOperationResult(false, "找不到指定位號。"));
+            var current = _ranks[index];
+            if (current.Version != input.Version)
+                return Task.FromResult(new AdminOperationResult(false, "位號版本已更新，請重新載入後再編輯。"));
+            if (!current.IsActive && input.IsApplicationOption)
+                return Task.FromResult(new AdminOperationResult(false, "停用中的位號不可設為建角起始位號。"));
+
+            var updated = current with
+            {
+                DisplayName = input.DisplayName.Trim(),
+                IsApplicationOption = input.IsApplicationOption,
+                Vitality = input.Vitality,
+                Appearance = input.Appearance,
+                Strategy = input.Strategy,
+                Luck = input.Luck,
+                Version = current.Version + 1
+            };
+            _ranks[index] = updated;
+            AddAudit(actor, "rank.application-option.update", current.DisplayName,
+                $"可建角={current.IsApplicationOption}; 體{current.Vitality}/容{current.Appearance}/心{current.Strategy}/福{current.Luck}",
+                $"可建角={updated.IsApplicationOption}; 體{updated.Vitality}/容{updated.Appearance}/心{updated.Strategy}/福{updated.Luck}",
+                input.ChangeReason);
+            return Task.FromResult(new AdminOperationResult(true, $"「{updated.DisplayName}」的建角設定已儲存。", updated.Version));
+        }
+    }
+
     public Task<IReadOnlyList<NpcContentRow>> GetNpcsAsync(CancellationToken cancellationToken)
         => Task.FromResult<IReadOnlyList<NpcContentRow>>(
         [
@@ -185,18 +227,18 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
             O("yuwandi", "虞綰笛", "福氣 +5 點", 50, S("luck", 5)), O("chuzhenxi", "楚枕溪", "福氣 +3 點", 60, S("luck", 3)),
             O("heliyang", "何黎漾", "福氣 +5 點", 70, S("luck", 5)), O("fuzeling", "傅則靈", "福氣 +3 點", 80, S("luck", 3)),
             O("quzhining", "曲知寧", "福氣 +2 點", 90, S("luck", 2)), O("jingyiluo", "景亦絡", "福氣 +2 點", 100, S("luck", 2))),
-        Activity("taiye-draw", "taiye-draw", "觀仙台・太液池", "太液池", "宮女", 100,
+        Activity("taiye-draw", "taiye-draw", "觀仙台", "太液池", "宮女", 100,
             "抽籤前請記得繳交自戲，主系統通過才可指定籤。", "優惠券或威望增加 50～100。",
             O("gongxi", "貢溪", "威望 +70", 10, S("prestige", 70)),
             O("yuwu", "諭霧", "優惠券 ×1、威望 +50", 20, I("coupon", 1), S("prestige", 50)),
             O("lanying", "藍英", "威望 +80", 30, S("prestige", 80)), O("jiamu", "嘉穆", "威望 +100", 40, S("prestige", 100)),
             O("liuhua", "流華", "威望 +80", 50, S("prestige", 80))),
-        Activity("yuhua-draw", "yuhua-draw", "觀仙台・御花園", "御花園", "籤使", 300,
+        Activity("yuhua-draw", "yuhua-draw", "觀仙台", "御花園", "籤使", 300,
             "抽籤前請記得繳交自戲，主系統通過才可指定籤。", "體質／容貌增加 1～5 點，或威望增加 100～300。",
             O("yaocao", "瑤草", "體質 +3 點、容貌 +3 點", 10, S("vitality", 3), S("appearance", 3)),
             O("suiwan", "歲晚", "威望 +250", 20, S("prestige", 250)), O("wenyu", "聞語", "體質 +5 點", 30, S("vitality", 5)),
             O("siyao", "思遙", "威望 +300", 40, S("prestige", 300)), O("yechu", "葉初", "容貌 +5 點", 50, S("appearance", 5))),
-        Activity("shanglin-draw", "shanglin-draw", "觀仙台・上林苑", "上林苑", "籤使", 500,
+        Activity("shanglin-draw", "shanglin-draw", "觀仙台", "上林苑", "籤使", 500,
             "抽籤前請記得繳交自戲，主系統通過才可指定籤。", "四項能力增加 1～8 點，或威望增加 150～450。",
             O("yujin", "渝矜", "心計 +4、容貌 +4、威望 +200", 10, S("strategy", 4), S("appearance", 4), S("prestige", 200)),
             O("yixian", "意弦", "體質 +5、福氣 +5、威望 +200", 20, S("vitality", 5), S("luck", 5), S("prestige", 200)),
@@ -214,4 +256,25 @@ public sealed class PreviewAdminUiApplication : IAdminUiApplication
 
     private static SceneEffectEditor S(string code, int amount) => new("stat", code, amount);
     private static SceneEffectEditor I(string code, int amount) => new("inventory", code, amount);
+
+    private static List<RankApplicationOptionRow> CreateRanks() =>
+    [
+        R("consort-良女", "consort", "正九品", "良女", 500, 400, 500, 100),
+        R("consort-娘子", "consort", "側九品", "娘子", 400, 330, 400, 80),
+        R("consort-選侍", "consort", "側九品", "選侍", 300, 280, 300, 50),
+        R("consort-答應", "consort", "從九品", "答應", 200, 250, 200, 30),
+        R("prince-謙恭皇子", "prince", "正九品", "謙恭皇子", 500, 400, 500, 100),
+        R("prince-沅桉皇子", "prince", "側九品", "沅桉皇子", 400, 330, 400, 80),
+        R("prince-沅晉皇子", "prince", "側九品", "沅晉皇子", 300, 280, 300, 50),
+        R("prince-皇子", "prince", "從九品", "皇子", 200, 250, 200, 30),
+        R("princess-謙恭帝姬", "princess", "正九品", "謙恭帝姬", 500, 400, 500, 100),
+        R("princess-沅華帝姬", "princess", "側九品", "沅華帝姬", 400, 330, 400, 80),
+        R("princess-沅絪帝姬", "princess", "側九品", "沅絪帝姬", 300, 280, 300, 50),
+        R("princess-帝姬", "princess", "從九品", "帝姬", 200, 250, 200, 30)
+    ];
+
+    private static RankApplicationOptionRow R(
+        string id, string role, string grade, string name,
+        int vitality, int appearance, int strategy, int luck)
+        => new(id, id, role, grade, name, true, vitality, appearance, strategy, luck, true, 1);
 }

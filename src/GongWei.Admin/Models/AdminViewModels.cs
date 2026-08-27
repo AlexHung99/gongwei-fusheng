@@ -64,6 +64,24 @@ public sealed record CharacterApplicationRow(
     string Id, string DisplayName, string Role, string PortraitUrl, string Status,
     DateTimeOffset SubmittedAt, int Revision, string? ReviewNote);
 
+public sealed record RankApplicationOptionRow(
+    string Id, string Code, string Role, string GradeCode, string DisplayName,
+    bool IsApplicationOption, int Vitality, int Appearance, int Strategy, int Luck,
+    bool IsActive, long Version);
+
+public sealed class UpdateRankApplicationOptionInput
+{
+    [Required] public string Id { get; set; } = "";
+    [Required, StringLength(100)] public string DisplayName { get; set; } = "";
+    public bool IsApplicationOption { get; set; }
+    [Range(0, 1000)] public int Vitality { get; set; }
+    [Range(0, 1000)] public int Appearance { get; set; }
+    [Range(0, 1000)] public int Strategy { get; set; }
+    [Range(0, 1000)] public int Luck { get; set; }
+    [Required, StringLength(500, MinimumLength = 3)] public string ChangeReason { get; set; } = "";
+    [Range(1, long.MaxValue)] public long Version { get; set; }
+}
+
 public sealed record NpcContentRow(
     string Id, string Code, string DisplayName, string Title, string Status,
     string PortraitUrl, DateTimeOffset UpdatedAt, long Version);

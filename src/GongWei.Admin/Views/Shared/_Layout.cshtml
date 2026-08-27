@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@ViewData["Title"]｜宮闈浮生管理臺</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ranks-and-scenes.css" asp-append-version="true" />
 </head>
 <body>
     <div class="admin-shell">
@@ -14,6 +15,7 @@
             <nav class="nav-list" aria-label="後台功能">
                 <a asp-controller="Home" asp-action="Index"><span>儀</span>總覽</a>
                 <a asp-controller="Applications" asp-action="Index"><span>審</span>建角審核</a>
+                <a asp-controller="Ranks" asp-action="Index"><span>階</span>起始位號</a>
                 <a asp-controller="SceneActivities" asp-action="Index"><span>籤</span>場景與籤池</a>
                 <a asp-controller="Npcs" asp-action="Index"><span>冊</span>NPC 內容</a>
                 <a asp-controller="Settings" asp-action="Index"><span>律</span>遊戲設定</a>

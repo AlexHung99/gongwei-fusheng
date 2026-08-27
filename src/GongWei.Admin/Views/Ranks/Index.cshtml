@@ -1,0 +1,44 @@
+@model IReadOnlyList<RankApplicationOptionRow>
+@{
+    ViewData["Title"] = "起始位號";
+    string RoleLabel(string role) => role switch { "consort" => "妃嬪", "prince" => "皇子", "princess" => "帝姬", _ => role };
+}
+
+<section class="page-heading">
+    <div><p class="eyebrow">APPLICATION RANKS</p><h1>建角起始位號</h1><p>設定審核建角時可選擇的位號，以及角色建立時寫入的初始能力。</p></div>
+</section>
+
+<div class="notice-card">
+    <strong>結算規則</strong>
+    <p>核准申請時只顯示「啟用且可作為建角起始位號」的項目；能力值以 1000 為滿值，威望、恩寵與銀兩仍固定從 0 開始。</p>
+</div>
+
+<section class="panel table-panel">
+    <div class="table-tools"><input data-table-filter placeholder="搜尋角色、品級或位號" /><span>@Model.Count 個位號</span></div>
+    <div class="rank-option-list" data-filter-target>
+    @foreach (var rank in Model)
+    {
+        <form class="rank-option-row" method="post" asp-action="Update">
+            <input type="hidden" name="Id" value="@rank.Id" />
+            <input type="hidden" name="Version" value="@rank.Version" />
+            <header>
+                <span class="status @(rank.IsApplicationOption ? "published" : "draft")">@(rank.IsApplicationOption ? "建角可選" : "不提供")</span>
+                <strong>@RoleLabel(rank.Role)・@rank.GradeCode</strong>
+                <code>@rank.Code</code>
+            </header>
+            <div class="rank-option-fields">
+                <label><span>位號名稱</span><input name="DisplayName" value="@rank.DisplayName" maxlength="100" required /></label>
+                <label><span>體質</span><input name="Vitality" type="number" min="0" max="1000" value="@rank.Vitality" /></label>
+                <label><span>容貌</span><input name="Appearance" type="number" min="0" max="1000" value="@rank.Appearance" /></label>
+                <label><span>心計</span><input name="Strategy" type="number" min="0" max="1000" value="@rank.Strategy" /></label>
+                <label><span>福氣</span><input name="Luck" type="number" min="0" max="1000" value="@rank.Luck" /></label>
+            </div>
+            <footer>
+                <label class="switch"><input name="IsApplicationOption" type="checkbox" value="true" checked="@rank.IsApplicationOption" disabled="@(!rank.IsActive)" /> 可作為建角起始位號</label>
+                <input name="ChangeReason" placeholder="異動理由（至少 3 字）" minlength="3" maxlength="500" required />
+                <button class="button primary" type="submit">儲存</button>
+            </footer>
+        </form>
+    }
+    </div>
+</section>

@@ -1,7 +1,7 @@
-# 宮闈浮生管理後台前端交接規格 v1.0
+# 宮闈浮生管理後台前端交接規格 v1.1
 
-> 文件版本：1.0.0<br>
-> 定稿日期：2026-08-23<br>
+> 文件版本：1.1.0<br>
+> 更新日期：2026-08-27<br>
 > 技術：ASP.NET Core 10 MVC／Razor、IIS<br>
 > 正式網址：`https://gongwei-admin.miglow.vip/`<br>
 > 最新程式碼：<https://github.com/AlexHung99/gongwei-fusheng/tree/main/src/GongWei.Admin>
@@ -42,7 +42,8 @@ Browser
 |---|---|---|---|
 | `/` | 今日宮務、數量卡、隊列、近期 Audit | `AnyManager` | UI、Query 介面完成 |
 | `/Applications` | 建角申請列表與搜尋 | `CharacterReviewer` | UI、Query 介面完成；Approve／Return 待接 Command |
-| `/SceneActivities` | 6 個場景與籤池摘要 | `ContentEditor` | UI、Query 完成 |
+| `/Ranks` | 建角起始位號與初始能力 | `SystemConfigManager` | UI、Query／Update 介面完成 |
+| `/SceneActivities` | 4 個場所／6 個活動與籤池摘要 | `ContentEditor` | UI、Query 完成 |
 | `/SceneActivities/Edit/{id}` | 場景資料、44 支籤、多重效果 | `ContentEditor` | UI、Query／Update／Publish 介面完成 |
 | `/Npcs` | NPC 內容版本列表 | `ContentEditor` | UI、Query 介面完成；Editor 待接 CMS Commands |
 | `/Settings` | 生育、贊助等正式參數摘要 | `SystemConfigManager` | UI、Query 介面完成；Update 待接 Command |
@@ -75,7 +76,7 @@ Browser
 
 ## 5. 場景與抽籤後台
 
-本版內建下列管理畫面資料，用來驗證 UI 與正式 Seed 的對應：
+本版內建下列管理畫面資料，用來驗證 UI 與正式 Seed 的對應。後台場所清單以 `locations` 分組，因此觀仙台只顯示一張場所卡；太液池、御花園、上林苑是卡內三個可分別編輯的活動／籤池，不得誤呈現為三個觀仙台：
 
 | 場景 | 引導者 | 籤數 | 最低已核准戲文 |
 |---|---:|---:|---:|
@@ -86,7 +87,7 @@ Browser
 | 觀仙台・御花園 | 籤使 | 5 | 300 字 |
 | 觀仙台・上林苑 | 籤使 | 5 | 500 字 |
 
-合計 6 個場景、44 支啟用籤。玩家主動指定一個籤名，但在結算前不得知道或由任何 Player DTO 推導籤的效果、數值與道具。
+合計 4 個場所、6 個場景活動、44 支啟用籤。玩家主動指定一個籤名，但在結算前不得知道或由任何 Player DTO 推導籤的效果、數值與道具。
 
 ### 5.1 場景編輯欄位
 
@@ -123,6 +124,21 @@ Browser
 6. 玩家抽籤交易成功後才寫 result、Ledger、Stats、Chronicle、Audit／Outbox；任一步失敗全數 rollback。
 7. Player list/detail endpoints 結算前只回 option `id/code/display_name`，不得序列化 `effects` 或 `result_reveal_text`。
 
+### 5.4 建角起始位號管理
+
+`/Ranks` 必須讀取正式 `game.ranks`，讓具 `SystemConfigManager` 權限的管理員管理：
+
+- 位號名稱 `display_name`。
+- 是否可作為建角起始位號 `is_application_option`。
+- `initial_stats` 中的 `vitality`、`appearance`、`strategy`、`luck`，每項範圍 0～1000。
+- `applies_to_role`、`grade_code`、`code` 與啟用狀態在此頁只讀；完整位階結構另由位階 CMS 管理。
+- 威望、恩寵、銀兩固定為 0，不得由本畫面修改。
+- 停用位號不可勾選為建角起始位號。
+
+建角審核頁的起始位號下拉選單只查詢 `is_active = true AND is_application_option = true AND applies_to_role = 申請角色`。修改設定不追溯更動既有角色；新的核准交易才採用最新值。
+
+每次儲存必須驗證管理員 DB RBAC、submitted version、同角色位號名稱唯一性與能力範圍，並在同一個 `ReadCommitted` 交易中更新 Rank、寫入 Audit Log 及 Outbox。異動理由至少 3 字，Audit 保存 before／after、actor、reason、request ID 與 occurred_at。現有 schema 已包含 `is_application_option`、`initial_stats` 與 `version`，不需要新增資料表或 Migration。
+
 ## 6. `IAdminUiApplication` 對接清單
 
 | UI Method | 正式 Query／Command 責任 |
@@ -134,6 +150,8 @@ Browser
 | `UpdateSceneOptionAsync` | 儲存單支籤及完整 effects 並 Audit |
 | `PublishSceneActivityAsync` | 驗證整個籤池後原子發布 revision |
 | `GetCharacterApplicationsAsync` | 管理員申請列表，含 revision 與 review note |
+| `GetRankApplicationOptionsAsync` | 讀取全部位號及其建角選項、初始能力與版本 |
+| `UpdateRankApplicationOptionAsync` | 更新位號名稱、建角選項與四項初始能力；同交易 Audit／Outbox |
 | `GetNpcsAsync` | NPC draft／published 摘要與版本 |
 | `GetAuditAsync` | 分頁、篩選、不可變 Audit 查詢 |
 | `GetGameSettingsAsync` | 目前生效的可管理設定 |
@@ -145,6 +163,7 @@ Browser
 - 真實 LINE 管理登入、登出、Session renewal／revocation。
 - Application／Infrastructure DI 與 PostgreSQL queries／commands。
 - 建角 Approve、Return、補件歷程與立繪檢視。
+- 起始位號正式 Query／Update adapter；審核下拉選單須即時讀取已啟用的建角位號。
 - NPC 新增、草稿、預覽、發布、回復 Revision、立繪上傳。
 - 遊戲設定 Update Command。
 - Audit 的伺服器端分頁、條件篩選與詳細頁。

@@ -2,7 +2,7 @@ document.querySelector('[data-sidebar-toggle]')?.addEventListener('click',()=>do
 
 document.querySelectorAll('[data-confirm]').forEach(form=>form.addEventListener('submit',event=>{if(!window.confirm(form.dataset.confirm))event.preventDefault()}));
 
-document.querySelectorAll('[data-table-filter]').forEach(input=>input.addEventListener('input',()=>{const rows=document.querySelector('[data-filter-target]')?.querySelectorAll('tr')??[];const term=input.value.trim().toLowerCase();rows.forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(term))}));
+document.querySelectorAll('[data-table-filter]').forEach(input=>input.addEventListener('input',()=>{const target=input.closest('.panel')?.querySelector('[data-filter-target]')??document.querySelector('[data-filter-target]');const rows=target?.querySelectorAll('tr,.rank-option-row')??[];const term=input.value.trim().toLowerCase();rows.forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(term))}));
 
 function renumberEffects(form){form.querySelectorAll('[data-effect-rows] .effect-row').forEach((row,index)=>{row.querySelectorAll('[name],[data-field]').forEach(field=>{const key=field.dataset.field??field.name.split('.').pop();field.name=`Effects[${index}].${key}`})})}
 
