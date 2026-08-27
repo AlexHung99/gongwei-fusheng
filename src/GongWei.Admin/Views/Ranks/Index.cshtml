@@ -1,7 +1,7 @@
 @model IReadOnlyList<RankApplicationOptionRow>
 @{
     ViewData["Title"] = "起始位號";
-    string RoleLabel(string role) => role switch { "consort" => "妃嬪", "prince" => "皇子", "princess" => "帝姬", _ => role };
+    string RoleLabel(string role) => role switch { "consort" => "嬪妃", "prince" => "皇子", "princess" => "帝姬", _ => role };
 }
 
 <section class="page-heading">
@@ -14,11 +14,22 @@
 </div>
 
 <section class="panel table-panel">
-    <div class="table-tools"><input data-table-filter placeholder="搜尋角色、品級或位號" /><span>@Model.Count 個位號</span></div>
+    <div class="table-tools">
+        <div class="rank-filter-controls">
+            <select data-rank-role-filter aria-label="依角色身份篩選">
+                <option value="">全部身份</option>
+                <option value="consort">嬪妃</option>
+                <option value="prince">皇子</option>
+                <option value="princess">帝姬</option>
+            </select>
+            <input data-table-filter placeholder="搜尋品級或位號" aria-label="搜尋位號" />
+        </div>
+        <span data-filter-count data-total="@Model.Count">顯示 @Model.Count / @Model.Count 個位號</span>
+    </div>
     <div class="rank-option-list" data-filter-target>
     @foreach (var rank in Model)
     {
-        <form class="rank-option-row" method="post" asp-action="Update">
+        <form class="rank-option-row" method="post" asp-action="Update" data-role="@rank.Role">
             <input type="hidden" name="Id" value="@rank.Id" />
             <input type="hidden" name="Version" value="@rank.Version" />
             <header>

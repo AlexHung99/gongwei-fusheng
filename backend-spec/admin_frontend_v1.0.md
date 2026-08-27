@@ -127,6 +127,7 @@ Browser
 
 `/Ranks` 必須讀取正式 `game.ranks`，讓具 `SystemConfigManager` 權限的管理員管理：
 
+- 清單可依角色身份篩選：全部、嬪妃 `consort`、皇子 `prince`、帝姬 `princess`；身份篩選可與品級／位號文字搜尋同時使用。
 - 位號名稱 `display_name`。
 - 是否可作為建角起始位號 `is_application_option`。
 - `initial_stats` 中的 `vitality`、`appearance`、`strategy`、`luck`，每項範圍 0～1000。

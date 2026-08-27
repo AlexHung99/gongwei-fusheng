@@ -2,7 +2,10 @@ document.querySelector('[data-sidebar-toggle]')?.addEventListener('click',()=>do
 
 document.querySelectorAll('[data-confirm]').forEach(form=>form.addEventListener('submit',event=>{if(!window.confirm(form.dataset.confirm))event.preventDefault()}));
 
-document.querySelectorAll('[data-table-filter]').forEach(input=>input.addEventListener('input',()=>{const target=input.closest('.panel')?.querySelector('[data-filter-target]')??document.querySelector('[data-filter-target]');const rows=target?.querySelectorAll('tr,.rank-option-row')??[];const term=input.value.trim().toLowerCase();rows.forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(term))}));
+function filterRows(control){const panel=control.closest('.panel');const target=panel?.querySelector('[data-filter-target]')??document.querySelector('[data-filter-target]');const rows=[...(target?.querySelectorAll('tr,.rank-option-row')??[])];const term=(panel?.querySelector('[data-table-filter]')?.value??'').trim().toLowerCase();const role=panel?.querySelector('[data-rank-role-filter]')?.value??'';rows.forEach(row=>row.hidden=!(row.textContent.toLowerCase().includes(term)&&(!role||row.dataset.role===role)));const count=panel?.querySelector('[data-filter-count]');if(count){const total=Number(count.dataset.total??rows.length);count.textContent=`顯示 ${rows.filter(row=>!row.hidden).length} / ${total} 個位號`}}
+
+document.querySelectorAll('[data-table-filter]').forEach(input=>input.addEventListener('input',()=>filterRows(input)));
+document.querySelectorAll('[data-rank-role-filter]').forEach(select=>select.addEventListener('change',()=>filterRows(select)));
 
 function renumberEffects(form){form.querySelectorAll('[data-effect-rows] .effect-row').forEach((row,index)=>{row.querySelectorAll('[name],[data-field]').forEach(field=>{const key=field.dataset.field??field.name.split('.').pop();field.name=`Effects[${index}].${key}`})})}
 
