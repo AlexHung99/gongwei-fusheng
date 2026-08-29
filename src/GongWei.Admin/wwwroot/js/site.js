@@ -7,6 +7,107 @@ function filterRows(control){const panel=control.closest('.panel');const target=
 document.querySelectorAll('[data-table-filter]').forEach(input=>input.addEventListener('input',()=>filterRows(input)));
 document.querySelectorAll('[data-rank-role-filter]').forEach(select=>select.addEventListener('change',()=>filterRows(select)));
 
+function setupRankTable(){
+  const root=document.querySelector('[data-rank-table]');
+  const searchForm=document.querySelector('[data-rank-search-form]');
+  if(!root||!searchForm)return;
+
+  const records=[...root.querySelectorAll('[data-rank-record]')];
+  const editors=new Map([...root.querySelectorAll('[data-rank-editor-for]')].map(row=>[row.dataset.rankEditorFor,row]));
+  const count=root.querySelector('[data-rank-result-count]');
+  const pageSummary=root.querySelector('[data-rank-page-summary]');
+  const pagination=root.querySelector('[data-rank-pagination]');
+  const pageSizeControl=root.querySelector('[data-rank-page-size]');
+  const empty=root.querySelector('[data-rank-empty]');
+  let matching=records;
+  let currentPage=1;
+
+  function closeEditors(exceptId){
+    editors.forEach((editor,id)=>{
+      if(id===exceptId)return;
+      editor.hidden=true;
+      root.querySelector(`[data-rank-edit-toggle="${CSS.escape(id)}"]`)?.setAttribute('aria-expanded','false');
+    });
+  }
+
+  function currentCriteria(){
+    const data=new FormData(searchForm);
+    return {
+      role:String(data.get('role')??''),
+      grade:String(data.get('grade')??''),
+      active:String(data.get('active')??''),
+      application:String(data.get('application')??''),
+      keyword:String(data.get('keyword')??'').trim().toLowerCase()
+    };
+  }
+
+  function renderPagination(totalPages){
+    pagination.replaceChildren();
+    if(totalPages<=1)return;
+    const addButton=(label,page,active=false,disabled=false)=>{
+      const button=document.createElement('button');
+      button.type='button';button.textContent=label;button.disabled=disabled;
+      button.className=active?'active':'';
+      button.setAttribute('aria-label',label===String(page)?`第 ${page} 頁`:label);
+      button.addEventListener('click',()=>{currentPage=page;applyFilters(false);root.scrollIntoView({behavior:'smooth',block:'start'})});
+      pagination.append(button);
+    };
+    addButton('上一頁',Math.max(1,currentPage-1),false,currentPage===1);
+    const start=Math.max(1,Math.min(currentPage-2,totalPages-4));
+    const end=Math.min(totalPages,start+4);
+    for(let page=start;page<=end;page++)addButton(String(page),page,page===currentPage);
+    addButton('下一頁',Math.min(totalPages,currentPage+1),false,currentPage===totalPages);
+  }
+
+  function applyFilters(resetPage=true){
+    if(resetPage)currentPage=1;
+    const criteria=currentCriteria();
+    matching=records.filter(row=>(!criteria.role||row.dataset.role===criteria.role)
+      &&(!criteria.grade||row.dataset.grade===criteria.grade)
+      &&(!criteria.active||row.dataset.active===criteria.active)
+      &&(!criteria.application||row.dataset.application===criteria.application)
+      &&(!criteria.keyword||row.dataset.search.toLowerCase().includes(criteria.keyword)));
+    const pageSize=Number(pageSizeControl.value)||20;
+    const totalPages=Math.max(1,Math.ceil(matching.length/pageSize));
+    currentPage=Math.min(currentPage,totalPages);
+    const visibleIds=new Set(matching.slice((currentPage-1)*pageSize,currentPage*pageSize).map(row=>row.dataset.id));
+    records.forEach(row=>{
+      row.hidden=!visibleIds.has(row.dataset.id);
+      if(row.hidden){const editor=editors.get(row.dataset.id);if(editor)editor.hidden=true}
+    });
+    count.textContent=`符合 ${matching.length} / ${records.length} 個位號`;
+    const first=matching.length?(currentPage-1)*pageSize+1:0;
+    const last=Math.min(currentPage*pageSize,matching.length);
+    pageSummary.textContent=`顯示 ${first}–${last} 筆，共 ${matching.length} 筆`;
+    empty.hidden=matching.length!==0;
+    renderPagination(totalPages);
+  }
+
+  searchForm.addEventListener('submit',event=>{event.preventDefault();closeEditors();applyFilters()});
+  searchForm.addEventListener('reset',()=>setTimeout(()=>{closeEditors();applyFilters()},0));
+  pageSizeControl.addEventListener('change',()=>applyFilters());
+  searchForm.querySelector('[name="keyword"]')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();searchForm.requestSubmit()}});
+
+  root.addEventListener('click',event=>{
+    const toggle=event.target.closest('[data-rank-edit-toggle]');
+    const cancel=event.target.closest('[data-rank-edit-cancel]');
+    if(!toggle&&!cancel)return;
+    const id=(toggle?.dataset.rankEditToggle??cancel?.dataset.rankEditCancel);
+    const editor=editors.get(id);
+    if(!editor)return;
+    if(cancel){editor.hidden=true;root.querySelector(`[data-rank-edit-toggle="${CSS.escape(id)}"]`)?.setAttribute('aria-expanded','false');return}
+    const willOpen=editor.hidden;
+    closeEditors(willOpen?id:undefined);
+    editor.hidden=!willOpen;
+    toggle.setAttribute('aria-expanded',String(willOpen));
+    if(willOpen)editor.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+
+  applyFilters();
+}
+
+setupRankTable();
+
 function renumberEffects(form){form.querySelectorAll('[data-effect-rows] .effect-row').forEach((row,index)=>{row.querySelectorAll('[name],[data-field]').forEach(field=>{const key=field.dataset.field??field.name.split('.').pop();field.name=`Effects[${index}].${key}`})})}
 
 function syncEffectCode(row){const type=row.querySelector('[data-effect-type]')?.value;const code=row.querySelector('[data-effect-code]');if(!type||!code)return;const options=[...code.options];options.forEach(option=>option.hidden=option.dataset.effectType!==type);if(code.selectedOptions[0]?.hidden){const first=options.find(option=>!option.hidden);if(first)code.value=first.value}}

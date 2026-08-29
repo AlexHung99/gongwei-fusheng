@@ -2,49 +2,86 @@
 @{
     ViewData["Title"] = "位號設定";
     string RoleLabel(string role) => role switch { "consort" => "嬪妃", "prince" => "皇子", "princess" => "帝姬", _ => role };
+    var gradeCodes = Model.Select(rank => rank.GradeCode).Distinct().OrderBy(value => value).ToArray();
 }
 
-<section class="page-heading">
-    <div><p class="eyebrow">RANK MANAGEMENT</p><h1>位號設定</h1><p>查詢、新增、修改或刪除嬪妃、皇子與帝姬位號。</p></div>
-    <a class="button primary" asp-action="Create">新增位號</a>
+<section class="page-heading compact">
+    <div><p class="eyebrow">RANK MANAGEMENT</p><h1>位號設定</h1><p>以表格查詢與維護嬪妃、皇子與帝姬位號。</p></div>
+    <a class="button primary" asp-action="Create">＋ 新增位號</a>
 </section>
 
-<div class="notice-card">
-    <strong>資料安全規則</strong>
-    <p>已被角色或審核紀錄使用的位號不會從資料庫硬刪除；點選「刪除」會停用位號並移出建角選單，歷史資料仍保留。</p>
-</div>
-
-<section class="panel table-panel">
-    <div class="table-tools">
-        <div class="rank-filter-controls">
-            <select data-rank-role-filter aria-label="依角色身份篩選">
-                <option value="">全部身份</option>
-                <option value="consort">嬪妃</option>
-                <option value="prince">皇子</option>
-                <option value="princess">帝姬</option>
-            </select>
-            <input data-table-filter placeholder="搜尋品級、位號或代碼" aria-label="搜尋位號" />
+<section class="panel rank-search-panel" aria-labelledby="rank-search-title">
+    <header class="rank-search-heading">
+        <div><span class="rank-search-icon" aria-hidden="true">⌕</span><h2 id="rank-search-title">查詢條件</h2></div>
+        <small>可複合篩選</small>
+    </header>
+    <form class="rank-search-form" data-rank-search-form>
+        <label><span>身份</span><select name="role"><option value="">全部身份</option><option value="consort">嬪妃</option><option value="prince">皇子</option><option value="princess">帝姬</option></select></label>
+        <label><span>品級</span><select name="grade"><option value="">全部品級</option>@foreach (var grade in gradeCodes){<option value="@grade">@grade</option>}</select></label>
+        <label><span>啟用狀態</span><select name="active"><option value="">全部狀態</option><option value="true">啟用</option><option value="false">已停用</option></select></label>
+        <label><span>建角選項</span><select name="application"><option value="">全部</option><option value="true">建角可選</option><option value="false">不提供</option></select></label>
+        <label class="rank-keyword-field"><span>關鍵字</span><input name="keyword" placeholder="搜尋位號、品級或代碼" /></label>
+        <div class="rank-search-actions">
+            <button class="button primary" type="submit">⌕ 搜尋</button>
+            <button class="button secondary" type="reset" data-rank-search-reset>清除</button>
         </div>
-        <span data-filter-count data-total="@Model.Count">顯示 @Model.Count / @Model.Count 個位號</span>
+    </form>
+</section>
+
+<section class="panel table-panel rank-table-panel" data-rank-table>
+    <div class="rank-table-toolbar">
+        <div><strong>位號清單</strong><span data-rank-result-count>共 @Model.Count 個位號</span></div>
+        <label>每頁顯示 <select data-rank-page-size><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option></select> 筆</label>
     </div>
     <div class="table-scroll">
-        <table>
-            <thead><tr><th>身份</th><th>品級／位號</th><th>門檻／月俸</th><th>初始能力</th><th>建角</th><th>狀態</th><th>版本</th><th>操作</th></tr></thead>
-            <tbody data-filter-target>
+        <table class="rank-data-table">
+            <thead><tr><th>功能</th><th>身份</th><th>位階</th><th>位號</th><th>品級</th><th>月俸</th><th>員額</th><th>建角</th><th>狀態</th></tr></thead>
+            <tbody>
             @foreach (var rank in Model)
             {
-                <tr class="rank-option-row" data-role="@rank.Role">
-                    <td><strong>@RoleLabel(rank.Role)</strong></td>
-                    <td><strong>@rank.GradeCode・@rank.DisplayName</strong><small><code>@rank.Code</code></small></td>
-                    <td>威望 @rank.PrestigeRequired.ToString("N0")<small>月俸 @rank.MonthlyStipend.ToString("N0")</small></td>
-                    <td>體 @rank.Vitality／容 @rank.Appearance／心 @rank.Strategy／福 @rank.Luck</td>
-                    <td><span class="status @(rank.IsApplicationOption ? "published" : "draft")">@(rank.IsApplicationOption ? "可選" : "不提供")</span></td>
-                    <td><span class="status @(rank.IsActive ? "published" : "draft")">@(rank.IsActive ? "啟用" : "已刪除")</span></td>
-                    <td>v@rank.Version</td>
-                    <td><a class="text-button rank-edit-link" asp-action="Edit" asp-route-id="@rank.Id">查看／編輯</a></td>
+                var activeValue = rank.IsActive ? "true" : "false";
+                var applicationValue = rank.IsApplicationOption ? "true" : "false";
+                <tr class="rank-data-row" data-rank-record data-id="@rank.Id" data-role="@rank.Role" data-grade="@rank.GradeCode" data-active="@activeValue" data-application="@applicationValue" data-search="@rank.Code @rank.DisplayName @rank.GradeCode @RoleLabel(rank.Role)">
+                    <td data-label="功能"><div class="rank-row-actions"><button class="mini-button edit" type="button" data-rank-edit-toggle="@rank.Id" aria-expanded="false">編輯</button><a class="mini-button view" asp-action="Edit" asp-route-id="@rank.Id">檢視</a>@if(rank.IsActive){<a class="mini-button delete" asp-action="Edit" asp-route-id="@rank.Id" asp-fragment="delete-rank">停用</a>}</div></td>
+                    <td data-label="身份"><strong>@RoleLabel(rank.Role)</strong></td>
+                    <td data-label="位階">@rank.Ordinal</td>
+                    <td data-label="位號"><strong>@rank.DisplayName</strong><small><code>@rank.Code</code></small></td>
+                    <td data-label="品級">@rank.GradeCode</td>
+                    <td data-label="月俸">@rank.MonthlyStipend.ToString("N0")</td>
+                    <td data-label="員額">@(rank.Capacity?.ToString() ?? "不限")</td>
+                    <td data-label="建角"><span class="status @(rank.IsApplicationOption ? "published" : "draft")">@(rank.IsApplicationOption ? "可選" : "不提供")</span></td>
+                    <td data-label="狀態"><span class="status @(rank.IsActive ? "published" : "draft")">@(rank.IsActive ? "啟用" : "已停用")</span><small>v@rank.Version</small></td>
+                </tr>
+                <tr class="rank-inline-editor-row" data-rank-editor-for="@rank.Id" hidden>
+                    <td colspan="9">
+                        <form method="post" asp-action="Update" class="rank-inline-form">
+                            <input type="hidden" name="Id" value="@rank.Id" /><input type="hidden" name="Version" value="@rank.Version" />
+                            <div class="rank-editor-title"><strong>編輯「@rank.DisplayName」</strong><span>@RoleLabel(rank.Role) · <code>@rank.Code</code></span></div>
+                            <div class="rank-editor-grid">
+                                <label><span>位號名稱</span><input name="DisplayName" value="@rank.DisplayName" maxlength="80" required /></label>
+                                <label><span>品級</span><input name="GradeCode" value="@rank.GradeCode" maxlength="20" required /></label>
+                                <label><span>位階排序</span><input name="Ordinal" type="number" min="0" value="@rank.Ordinal" /></label>
+                                <label><span>晉升威望</span><input name="PrestigeRequired" type="number" min="0" value="@rank.PrestigeRequired" /></label>
+                                <label><span>月俸</span><input name="MonthlyStipend" type="number" min="0" value="@rank.MonthlyStipend" /></label>
+                                <label><span>原始年俸</span><input name="SourceAnnualStipend" type="number" min="0" value="@rank.SourceAnnualStipend" /></label>
+                                <label><span>員額</span><input name="Capacity" type="number" min="1" value="@rank.Capacity" placeholder="留空為不限" /></label>
+                                <label><span>體質</span><input name="Vitality" type="number" min="0" max="1000" value="@rank.Vitality" /></label>
+                                <label><span>容貌</span><input name="Appearance" type="number" min="0" max="1000" value="@rank.Appearance" /></label>
+                                <label><span>心計</span><input name="Strategy" type="number" min="0" max="1000" value="@rank.Strategy" /></label>
+                                <label><span>福氣</span><input name="Luck" type="number" min="0" max="1000" value="@rank.Luck" /></label>
+                                <label class="switch"><input name="IsLead" type="checkbox" value="true" checked="@rank.IsLead" /> 主位</label>
+                                <label class="switch"><input name="IsApplicationOption" type="checkbox" value="true" checked="@rank.IsApplicationOption" /> 建角可選</label>
+                                <label class="switch"><input name="IsActive" type="checkbox" value="true" checked="@rank.IsActive" /> 啟用</label>
+                                <label class="rank-reason-field"><span>異動理由</span><input name="ChangeReason" minlength="3" maxlength="500" placeholder="至少 3 字，會寫入稽核紀錄" required /></label>
+                            </div>
+                            <div class="rank-editor-actions"><button class="button secondary" type="button" data-rank-edit-cancel="@rank.Id">取消</button><button class="button primary" type="submit">儲存修改</button></div>
+                        </form>
+                    </td>
                 </tr>
             }
             </tbody>
         </table>
     </div>
+    <footer class="rank-pagination"><span data-rank-page-summary></span><nav data-rank-pagination aria-label="位號清單分頁"></nav></footer>
+    <div class="rank-empty-state" data-rank-empty hidden><strong>查無資料</strong><p>請放寬查詢條件後重新搜尋。</p></div>
 </section>

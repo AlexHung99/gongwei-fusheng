@@ -39,36 +39,240 @@
     white-space: nowrap;
 }
 
-.rank-option-list {
-    display: grid;
+.rank-search-panel {
+    margin-bottom: 20px;
+    overflow: hidden;
 }
 
-.rank-filter-controls {
+.rank-search-heading {
     display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 18px;
+    border-bottom: 2px solid var(--jade-2);
+    background: #edf5f3;
+}
+
+.rank-search-heading > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rank-search-heading h2 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.rank-search-heading small,
+.rank-table-toolbar span {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.rank-search-icon {
+    color: var(--jade-2);
+    font: 700 22px/1 sans-serif;
+}
+
+.rank-search-form {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(130px, 1fr));
+    gap: 14px 16px;
+    padding: 18px;
+    background: #f4f9f8;
+}
+
+.rank-search-form label,
+.rank-inline-form label {
+    display: grid;
+    gap: 6px;
+    color: #5f6e6b;
+    font-size: 11px;
+}
+
+.rank-keyword-field {
+    grid-column: span 3;
+}
+
+.rank-search-actions {
+    display: flex;
+    align-items: end;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.button.secondary {
+    border: 1px solid #cfd8d5;
+    background: #fff;
+    color: var(--jade);
+}
+
+.rank-table-toolbar,
+.rank-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+}
+
+.rank-table-toolbar > div {
+    display: flex;
+    align-items: baseline;
     gap: 10px;
-    width: min(100%, 520px);
 }
 
-.rank-filter-controls select {
-    width: 140px;
+.rank-table-toolbar label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11px;
 }
 
-.rank-filter-controls input {
-    flex: 1;
-    max-width: none;
+.rank-table-toolbar select {
+    width: 76px;
+    padding: 7px 9px;
 }
 
-.rank-option-row {
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--line);
+.rank-data-table {
+    min-width: 1050px;
 }
 
-.rank-option-row[hidden] {
+.rank-data-table th {
+    border-bottom: 2px solid var(--jade-2);
+    background: #cfe7e7;
+    color: #304542;
+}
+
+.rank-data-table tbody .rank-data-row:nth-of-type(4n + 1) {
+    background: #edf7f7;
+}
+
+.rank-data-row:hover {
+    background: #fff8e9!important;
+}
+
+.rank-data-row[hidden],
+.rank-inline-editor-row[hidden] {
     display: none;
 }
 
-.rank-edit-link {
+.rank-row-actions {
+    display: flex;
+    gap: 5px;
     white-space: nowrap;
+}
+
+.mini-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    padding: 6px 9px;
+    background: var(--jade-2);
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 10px;
+}
+
+.mini-button.view {
+    background: #527f79;
+}
+
+.mini-button.delete {
+    background: var(--rose);
+}
+
+.rank-inline-editor-row td {
+    padding: 0;
+    border-bottom: 2px solid #a8c7c1;
+    background: #f8fbfa;
+}
+
+.rank-inline-form {
+    padding: 18px;
+}
+
+.rank-editor-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.rank-editor-title span {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.rank-editor-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.rank-editor-grid .switch {
+    align-self: end;
+    min-height: 39px;
+    padding: 9px 10px;
+    border: 1px solid #d6d0c5;
+    background: #fff;
+}
+
+.rank-reason-field {
+    grid-column: span 2;
+}
+
+.rank-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.rank-pagination {
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.rank-pagination nav {
+    display: flex;
+    gap: 5px;
+}
+
+.rank-pagination button {
+    min-width: 32px;
+    height: 32px;
+    border: 1px solid #b8cfca;
+    background: #fff;
+    color: var(--jade);
+    cursor: pointer;
+}
+
+.rank-pagination button.active {
+    border-color: var(--jade);
+    background: var(--jade);
+    color: #fff;
+}
+
+.rank-pagination button:disabled {
+    opacity: .4;
+    cursor: default;
+}
+
+.rank-empty-state {
+    padding: 42px 20px;
+    text-align: center;
+}
+
+.rank-empty-state p {
+    margin: 7px 0 0;
+    color: var(--muted);
+    font-size: 12px;
 }
 
 .rank-editor small {
@@ -126,73 +330,137 @@
     color: #fff;
 }
 
-.rank-option-row header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 13px;
-}
-
-.rank-option-row header code {
-    margin-left: auto;
-    color: var(--muted);
-    font-size: 10px;
-}
-
-.rank-option-fields {
-    display: grid;
-    grid-template-columns: 2fr repeat(4, 1fr);
-    gap: 10px;
-}
-
-.rank-option-fields label {
-    display: grid;
-    gap: 5px;
-    color: var(--muted);
-    font-size: 11px;
-}
-
-.rank-option-row footer {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-}
-
 @media (max-width: 1050px) {
-    .rank-option-fields {
-        grid-template-columns: repeat(2, 1fr);
+    .rank-search-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .rank-option-fields label:first-child {
+    .rank-keyword-field {
+        grid-column: span 1;
+    }
+
+    .rank-editor-grid {
+        grid-template-columns: repeat(3, minmax(120px, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .rank-table-panel .table-scroll {
+        padding: 12px;
+        overflow: visible;
+    }
+
+    .rank-data-table,
+    .rank-data-table tbody {
+        display: block;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .rank-data-table thead {
+        display: none;
+    }
+
+    .rank-data-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 12px;
+        border: 1px solid #c9dcd8;
+        background: #fff!important;
+        box-shadow: 0 4px 14px rgba(24,43,39,.05);
+    }
+
+    .rank-data-row td {
+        display: grid;
+        grid-template-columns: 84px minmax(0, 1fr);
+        align-items: center;
+        min-height: 45px;
+        border: 0;
+        border-bottom: 1px solid #e8eeec;
+    }
+
+    .rank-data-row td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 10px;
+    }
+
+    .rank-data-row td:first-child,
+    .rank-data-row td:nth-child(4) {
         grid-column: 1 / -1;
+    }
+
+    .rank-data-row td:first-child {
+        order: 20;
+        border-bottom: 0;
+        background: #eff6f4;
+    }
+
+    .rank-inline-editor-row {
+        display: block;
+        margin: -12px 0 12px;
+        border: 1px solid #a8c7c1;
+        border-top: 0;
+    }
+
+    .rank-inline-editor-row[hidden] {
+        display: none;
+    }
+
+    .rank-inline-editor-row td {
+        display: block;
+        border: 0;
+    }
+
+    .rank-editor-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
 @media (max-width: 760px) {
-    .table-tools,
-    .rank-filter-controls {
+    .rank-search-form {
+        grid-template-columns: 1fr;
+    }
+
+    .rank-keyword-field,
+    .rank-reason-field {
+        grid-column: auto;
+    }
+
+    .rank-search-actions,
+    .rank-search-actions .button {
+        width: 100%;
+    }
+
+    .rank-table-toolbar,
+    .rank-pagination {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .rank-filter-controls,
-    .rank-filter-controls select {
-        width: 100%;
-    }
-
-    .rank-option-fields,
-    .rank-option-row footer {
-        grid-template-columns: 1fr;
+    .rank-pagination nav {
+        overflow-x: auto;
     }
 
     .danger-zone,
     .danger-zone form {
         grid-template-columns: 1fr;
     }
+}
 
-    .rank-option-fields label:first-child {
+@media (max-width: 560px) {
+    .rank-data-row,
+    .rank-editor-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .rank-data-row td,
+    .rank-data-row td:first-child,
+    .rank-data-row td:nth-child(4) {
         grid-column: auto;
+    }
+
+    .rank-row-actions {
+        flex-wrap: wrap;
     }
 }

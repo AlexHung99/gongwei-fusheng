@@ -35,7 +35,7 @@
 
 @if (Model.IsActive)
 {
-    <section class="panel danger-zone">
+    <section class="panel danger-zone" id="delete-rank">
         <div><h2>刪除位號</h2><p>刪除後不再供建角、晉降或管理人員選擇；既有角色與稽核紀錄不受影響。</p></div>
         <form method="post" asp-action="Delete" data-confirm="確定要刪除這個位號嗎？歷史資料會保留。">
             <input type="hidden" name="Id" value="@Model.Id" />
